@@ -1,0 +1,455 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum OfferType {
+  RCVM_88
+  RCVM_175
+}
+
+enum OfferStatus {
+  EM_CAPTACAO
+  COMPLETA
+  ADIMPLENTE
+  INADIMPLENTE
+}
+
+enum TransactionType {
+  APORTE
+  RESGATE
+  JUROS
+}
+
+enum TransactionStatus {
+  APROVADO
+  PENDENTE
+  REJEITADO
+}
+
+enum DocumentType {
+  PROSPECTO
+  CONTRATO
+  RELATORIO
+  ADITIVO
+  PARECER
+  OUTRO
+}
+
+enum DocumentStatus {
+  APROVADO
+  PENDENTE
+  REVISAO_NECESSARIA
+}
+
+enum DocumentVisibility {
+  PUBLICO
+  INTERNO
+}
+
+enum SubmissionStatus {
+  NOVO
+  EM_ANALISE
+  APROVADO
+  REJEITADO
+}
+
+enum KYCStatus {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
+enum EntityStatus {
+  ATIVO
+  INATIVO
+  EM_ANALISE
+  SUSPENSO
+  BLOQUEADO
+}
+
+enum PersonType {
+  FISICA
+  JURIDICA
+}
+
+enum DistributorType {
+  CORRETORA
+  BANCO
+  PLATAFORMA
+}
+
+enum RiskProfile {
+  CONSERVADOR
+  MODERADO
+  AGRESSIVO
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  ORIGINADOR
+  DISTRIBUIDOR
+  ASSESSOR
+  INVESTIDOR
+}
+
+// ============================================
+// AUTENTICAÇÃO (Supabase Auth)
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      UserRole @default(INVESTIDOR)
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  originatorProfile   Originator?
+  distributorProfile  Distributor?
+  assessorProfile     Assessor?
+  investorProfile     InvestorProfile?
+
+  @@map("users")
+}
+
+// ============================================
+// OFERTAS
+// ============================================
+
+model Offer {
+  id        String      @id @default(cuid())
+  name      String
+  type      OfferType
+  status    OfferStatus @default(EM_CAPTACAO)
+  volume    Decimal     @db.Decimal(15, 2)
+  raised    Decimal     @db.Decimal(15, 2) @default(0)
+  progress  Int         @default(0) // 0-100
+  deadline  DateTime
+  minTicket Decimal     @db.Decimal(15, 2)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Foreign Keys
+  originatorId String
+  originator   Originator @relation(fields: [originatorId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  documents    Document[]
+  transactions Transaction[]
+  submissions  Submission[]
+  investors    InvestorOffer[]
+
+  @@index([status])
+  @@index([originatorId])
+  @@index([deadline])
+  @@map("offers")
+}
+
+// ============================================
+// TRANSAÇÕES
+// ============================================
+
+model Transaction {
+  id        String            @id @default(cuid())
+  amount    Decimal           @db.Decimal(15, 2)
+  type      TransactionType
+  status    TransactionStatus @default(PENDENTE)
+  date      DateTime          @default(now())
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  // Foreign Keys
+  offerId    String
+  offer      Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@index([offerId])
+  @@index([investorId])
+  @@index([status])
+  @@index([date])
+  @@map("transactions")
+}
+
+// ============================================
+// DOCUMENTOS
+// ============================================
+
+model Document {
+  id         String             @id @default(cuid())
+  name       String
+  type       DocumentType
+  visibility DocumentVisibility @default(PUBLICO)
+  status     DocumentStatus     @default(PENDENTE)
+  size       String // Ex: "2.8 MB"
+  fileUrl    String? // Supabase Storage URL
+  uploadDate DateTime           @default(now())
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  // Foreign Keys
+  offerId String
+  offer   Offer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([offerId])
+  @@index([visibility])
+  @@index([status])
+  @@map("documents")
+}
+
+// ============================================
+// SUBMISSÕES
+// ============================================
+
+model Submission {
+  id        String           @id @default(cuid())
+  amount    Decimal          @db.Decimal(15, 2)
+  status    SubmissionStatus @default(NOVO)
+  documents Int              @default(0)
+  date      DateTime         @default(now())
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Foreign Keys
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  offerId    String
+  offer      Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([investorId])
+  @@index([offerId])
+  @@index([status])
+  @@index([date])
+  @@map("submissions")
+}
+
+// ============================================
+// PERFIL DO INVESTIDOR
+// ============================================
+
+model InvestorProfile {
+  id          String  @id @default(cuid())
+  name        String
+  cpf         String  @unique
+  email       String  @unique
+  phone       String
+  riskProfile RiskProfile
+
+  // Dados Financeiros
+  ticketMedio         Decimal @db.Decimal(15, 2)
+  totalInvested       Decimal @db.Decimal(15, 2) @default(0)
+  numberOfInvestments Int     @default(0)
+  portfolioValue      Decimal @db.Decimal(15, 2) @default(0)
+  grossIncome         Decimal @db.Decimal(15, 2)
+  monthlyExpense      Decimal @db.Decimal(15, 2)
+  netWorth            Decimal @db.Decimal(15, 2)
+
+  // Status
+  kycStatus           KYCStatus @default(PENDENTE)
+  documentationStatus String    @default("Incompleta") // Completa/Incompleta
+
+  registrationDate DateTime @default(now())
+  lastUpdated      DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  // Foreign Keys
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Relacionamentos
+  transactions Transaction[]
+  submissions  Submission[]
+  offers       InvestorOffer[]
+
+  @@index([cpf])
+  @@index([email])
+  @@index([kycStatus])
+  @@map("investor_profiles")
+}
+
+// Tabela de junção N-N entre Investor e Offer
+model InvestorOffer {
+  id               String   @id @default(cuid())
+  amount           Decimal  @db.Decimal(15, 2)
+  investmentDate   DateTime @default(now())
+  expectedReturn   String // Ex: "12.5% a.a."
+  currentStatus    String // Ex: "Ativo", "Liquidado"
+
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  offerId String
+  offer   Offer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([investorId, offerId])
+  @@index([investorId])
+  @@index([offerId])
+  @@map("investor_offers")
+}
+
+// ============================================
+// ORIGINADORES
+// ============================================
+
+model Originator {
+  id               String       @id @default(cuid())
+  name             String
+  cnpj             String       @unique
+  type             PersonType
+  email            String       @unique
+  phone            String
+  totalEmitted     Decimal      @db.Decimal(15, 2) @default(0)
+  activeOffers     Int          @default(0)
+  status           EntityStatus @default(ATIVO)
+  registrationDate DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Foreign Keys
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Relacionamentos
+  offers Offer[]
+
+  @@index([cnpj])
+  @@index([status])
+  @@map("originators")
+}
+
+// ============================================
+// DISTRIBUIDORES
+// ============================================
+
+model Distributor {
+  id               String           @id @default(cuid())
+  name             String
+  cnpj             String           @unique
+  type             DistributorType
+  email            String           @unique
+  phone            String
+  totalDistributed Decimal          @db.Decimal(15, 2) @default(0)
+  activeOffers     Int              @default(0)
+  commission       String // Ex: "1.5%"
+  status           EntityStatus     @default(ATIVO)
+  certifications   String[] // Ex: ["CVM", "ANBIMA", "B3"]
+  registrationDate DateTime         @default(now())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Foreign Keys
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([cnpj])
+  @@index([status])
+  @@map("distributors")
+}
+
+// ============================================
+// EMPRESAS (ESCRITÓRIOS)
+// ============================================
+
+model Company {
+  id               String       @id @default(cuid())
+  name             String
+  cnpj             String       @unique
+  email            String       @unique
+  phone            String
+  address          String
+  totalClients     Int          @default(0)
+  activeAssessors  Int          @default(0)
+  totalDistributed Decimal      @db.Decimal(15, 2) @default(0)
+  commission       String // Ex: "1.5%"
+  status           EntityStatus @default(ATIVO)
+  registrationDate DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Relacionamentos
+  assessors Assessor[]
+
+  @@index([cnpj])
+  @@index([status])
+  @@map("companies")
+}
+
+// ============================================
+// ASSESSORES
+// ============================================
+
+model Assessor {
+  id               String       @id @default(cuid())
+  name             String
+  cpf              String       @unique
+  email            String       @unique
+  phone            String
+  registration     String // Ex: "CVM-12345"
+  totalClients     Int          @default(0)
+  activeContracts  Int          @default(0)
+  totalDistributed Decimal      @db.Decimal(15, 2) @default(0)
+  commission       String // Ex: "0.8%"
+  status           EntityStatus @default(ATIVO)
+  certifications   String[] // Ex: ["CVM", "ANCORD", "CFP"]
+  registrationDate DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Foreign Keys (companyId pode ser null para assessores independentes)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Relacionamentos
+  clients EndClient[]
+
+  @@index([cpf])
+  @@index([companyId])
+  @@index([status])
+  @@map("assessors")
+}
+
+// ============================================
+// CLIENTES FINAIS
+// ============================================
+
+model EndClient {
+  id                String       @id @default(cuid())
+  name              String
+  cpf               String       @unique
+  email             String       @unique
+  phone             String
+  investmentProfile RiskProfile
+  totalInvested     Decimal      @db.Decimal(15, 2) @default(0)
+  activeInvestments Int          @default(0)
+  portfolioValue    Decimal      @db.Decimal(15, 2) @default(0)
+  status            EntityStatus @default(ATIVO)
+  registrationDate  DateTime     @default(now())
+  lastInvestment    DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // Foreign Keys
+  assessorId String
+  assessor   Assessor @relation(fields: [assessorId], references: [id], onDelete: Cascade)
+
+  @@index([cpf])
+  @@index([assessorId])
+  @@index([status])
+  @@map("end_clients")
+}
