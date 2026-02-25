@@ -26,6 +26,7 @@ export interface Task {
   epic?: string;
   assignee?: string;
   sprint_id?: string;
+  parent_task_id?: string | null;
   position: number;
   created_at: string;
 }
