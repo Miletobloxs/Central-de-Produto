@@ -1,247 +1,631 @@
-import { ChevronDown, Plus, Filter } from "lucide-react";
+"use client";
 
-const epics = [
-  {
-    id: 15,
-    title: "Módulo de Antecipação de Recebíveis",
-    stream: "Plataforma Core",
-    quarter: "Q4 2023",
-    start: 0,
-    span: 2,
-    color: "bg-blue-500",
-    status: "Em Progresso",
-    statusColor: "text-blue-600 bg-blue-50",
-    priority: "Alta",
-  },
-  {
-    id: 16,
-    title: "Redesign do Checkout Mobile",
-    stream: "Mobile",
-    quarter: "Q4 2023",
-    start: 1,
-    span: 2,
-    color: "bg-purple-500",
-    status: "Planejado",
-    statusColor: "text-purple-600 bg-purple-50",
-    priority: "Média",
-  },
-  {
-    id: 17,
-    title: "Integração Multi-Bank API",
-    stream: "APIs e Integrações",
-    quarter: "Q1 2024",
-    start: 3,
-    span: 2,
-    color: "bg-amber-500",
-    status: "Planejado",
-    statusColor: "text-amber-600 bg-amber-50",
-    priority: "Alta",
-  },
-  {
-    id: 18,
-    title: "Analytics Platform v2",
-    stream: "Analytics & Dados",
-    quarter: "Q1 2024",
-    start: 3,
-    span: 3,
-    color: "bg-emerald-500",
-    status: "Planejado",
-    statusColor: "text-emerald-600 bg-emerald-50",
-    priority: "Média",
-  },
-  {
-    id: 19,
-    title: "Mobile App Refresh",
-    stream: "Mobile",
-    quarter: "Q2 2024",
-    start: 6,
-    span: 2,
-    color: "bg-pink-500",
-    status: "Planejado",
-    statusColor: "text-pink-600 bg-pink-50",
-    priority: "Baixa",
-  },
-  {
-    id: 20,
-    title: "Infraestrutura de Segurança",
-    stream: "Plataforma Core",
-    quarter: "Q2 2024",
-    start: 5,
-    span: 3,
-    color: "bg-slate-500",
-    status: "Planejado",
-    statusColor: "text-slate-600 bg-slate-50",
-    priority: "Alta",
-  },
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Plus, X, Loader2, Layers } from "lucide-react";
+import type { Sprint } from "@/types/product";
+
+// ─── Local types ──────────────────────────────────────────────
+type EpicStatus = "planned" | "in_progress" | "completed" | "delayed";
+type EpicPriority = "low" | "medium" | "high";
+
+interface Epic {
+  id: string;
+  title: string;
+  description?: string;
+  stream: string;
+  status: EpicStatus;
+  priority: EpicPriority;
+  color: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  created_at: string;
+  sprints?: Sprint[];
+}
+
+// ─── Constants ────────────────────────────────────────────────
+const STREAMS = [
+  "Plataforma Core",
+  "APIs e Integrações",
+  "Mobile",
+  "Analytics & Dados",
+  "Segurança",
+  "Dados & BI",
 ];
 
-const streams = ["Plataforma Core", "APIs e Integrações", "Mobile", "Analytics & Dados"];
-
-const months = [
-  "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+const COLORS = [
+  { id: "blue",    bg: "bg-blue-500"    },
+  { id: "purple",  bg: "bg-purple-500"  },
+  { id: "amber",   bg: "bg-amber-500"   },
+  { id: "emerald", bg: "bg-emerald-500" },
+  { id: "pink",    bg: "bg-pink-500"    },
+  { id: "slate",   bg: "bg-slate-500"   },
+  { id: "rose",    bg: "bg-rose-500"    },
+  { id: "orange",  bg: "bg-orange-500"  },
+  { id: "teal",    bg: "bg-teal-500"    },
+  { id: "indigo",  bg: "bg-indigo-500"  },
 ];
 
-const quarters = [
-  { label: "Q4 2023", cols: 3 },
-  { label: "Q1 2024", cols: 3 },
-  { label: "Q2 2024", cols: 3 },
-];
-
-const priorityColors: Record<string, string> = {
-  Alta: "text-red-600 bg-red-50 border-red-200",
-  Média: "text-amber-600 bg-amber-50 border-amber-200",
-  Baixa: "text-gray-500 bg-gray-50 border-gray-200",
+const STATUS_META: Record<EpicStatus, { label: string; color: string }> = {
+  planned:     { label: "Planejado",    color: "text-purple-600 bg-purple-50" },
+  in_progress: { label: "Em Progresso", color: "text-blue-600 bg-blue-50" },
+  completed:   { label: "Concluído",    color: "text-emerald-600 bg-emerald-50" },
+  delayed:     { label: "Atrasado",     color: "text-red-600 bg-red-50" },
 };
 
-export default function RoadmapPage() {
+const PRIORITY_META: Record<EpicPriority, { label: string; color: string }> = {
+  high:   { label: "Alta",  color: "text-red-600 bg-red-50 border-red-200" },
+  medium: { label: "Média", color: "text-amber-600 bg-amber-50 border-amber-200" },
+  low:    { label: "Baixa", color: "text-gray-500 bg-gray-50 border-gray-200" },
+};
+
+// ─── Timeline helpers ─────────────────────────────────────────
+function diffMonths(a: Date, b: Date) {
+  return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+}
+
+function buildTimeline(epics: Epic[]) {
+  const now = new Date();
+  let minDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  let maxDate = new Date(now.getFullYear(), now.getMonth() + 11, 1);
+
+  for (const e of epics) {
+    if (e.start_date) {
+      const d = new Date(e.start_date);
+      const m = new Date(d.getFullYear(), d.getMonth(), 1);
+      if (m < minDate) minDate = m;
+    }
+    if (e.end_date) {
+      const d = new Date(e.end_date);
+      const m = new Date(d.getFullYear(), d.getMonth(), 1);
+      if (m > maxDate) maxDate = m;
+    }
+  }
+
+  const totalMonths = Math.max(12, diffMonths(minDate, maxDate) + 1);
+  const months = Array.from({ length: totalMonths }, (_, i) => {
+    const d = new Date(minDate.getFullYear(), minDate.getMonth() + i, 1);
+    return { label: d.toLocaleString("pt-BR", { month: "short" }), date: d };
+  });
+
+  const quarters: { label: string; count: number }[] = [];
+  for (const m of months) {
+    const q = Math.floor(m.date.getMonth() / 3) + 1;
+    const label = `Q${q} ${m.date.getFullYear()}`;
+    if (!quarters.length || quarters[quarters.length - 1].label !== label) {
+      quarters.push({ label, count: 1 });
+    } else {
+      quarters[quarters.length - 1].count++;
+    }
+  }
+
+  return { months, quarters, timelineStart: minDate, totalMonths };
+}
+
+function epicPosition(epic: Epic, timelineStart: Date, totalMonths: number) {
+  if (!epic.start_date) return null;
+  const s = new Date(epic.start_date);
+  const e = epic.end_date
+    ? new Date(epic.end_date)
+    : new Date(s.getFullYear(), s.getMonth() + 1, 0);
+  const startOff = diffMonths(timelineStart, new Date(s.getFullYear(), s.getMonth(), 1));
+  const endOff   = diffMonths(timelineStart, new Date(e.getFullYear(), e.getMonth(), 1));
+  const cs = Math.max(0, startOff);
+  const ce = Math.min(totalMonths - 1, endOff);
+  if (ce < 0 || cs >= totalMonths) return null;
+  return {
+    left:  (cs / totalMonths) * 100,
+    width: ((ce - cs + 1) / totalMonths) * 100,
+  };
+}
+
+function colorBg(id: string) {
+  return COLORS.find((c) => c.id === id)?.bg ?? "bg-blue-500";
+}
+
+// ─── EpicModal ────────────────────────────────────────────────
+const INIT_FORM = {
+  title: "",
+  description: "",
+  stream: STREAMS[0],
+  status: "planned" as EpicStatus,
+  priority: "medium" as EpicPriority,
+  color: "blue",
+  start_date: "",
+  end_date: "",
+};
+
+function EpicModal({
+  allSprints,
+  onClose,
+  onCreated,
+}: {
+  allSprints: Sprint[];
+  onClose: () => void;
+  onCreated: (epic: Epic) => void;
+}) {
+  const supabase = createClient();
+  const [form, setForm] = useState(INIT_FORM);
+  const [selectedSprintIds, setSelectedSprintIds] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function toggleSprint(id: string) {
+    setSelectedSprintIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title.trim()) { setError("Título é obrigatório"); return; }
+    setSaving(true);
+    setError("");
+
+    const { data: epic, error: err } = await supabase
+      .from("epics")
+      .insert({
+        title:       form.title.trim(),
+        description: form.description.trim() || null,
+        stream:      form.stream,
+        status:      form.status,
+        priority:    form.priority,
+        color:       form.color,
+        start_date:  form.start_date || null,
+        end_date:    form.end_date   || null,
+      })
+      .select()
+      .single();
+
+    if (err || !epic) {
+      setError(err?.message ?? "Erro ao criar épico");
+      setSaving(false);
+      return;
+    }
+
+    if (selectedSprintIds.length > 0) {
+      await supabase
+        .from("sprints")
+        .update({ epic_id: epic.id })
+        .in("id", selectedSprintIds);
+    }
+
+    const linkedSprints = allSprints.filter((s) => selectedSprintIds.includes(s.id));
+    onCreated({ ...epic, sprints: linkedSprints });
+  }
+
   return (
-    <div className="p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Roadmap do Produto</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Visão trimestral de iniciativas e épicos</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors">
-            <Filter size={14} />
-            Filtros
-          </button>
-          <button className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2.5 hover:bg-blue-700 transition-colors">
-            <Plus size={14} />
-            Novo Épico
-          </button>
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "Épicos Planejados", value: "12", color: "text-gray-900" },
-          { label: "Em Progresso", value: "3", color: "text-blue-600" },
-          { label: "Concluídos", value: "8", color: "text-emerald-600" },
-          { label: "Atrasados", value: "1", color: "text-red-500" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
-            <p className="text-xs text-gray-500 mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/30 backdrop-blur-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="h-full w-full max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Novo Épico</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Defina o épico e associe sprints</p>
           </div>
-        ))}
-      </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
 
-      {/* Timeline */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* Quarter headers */}
-        <div className="border-b border-gray-100">
-          <div className="flex">
-            <div className="w-48 shrink-0 px-5 py-3 border-r border-gray-100 bg-gray-50">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Stream</p>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+          {/* Title */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Título *</label>
+            <input
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="Ex: Módulo de Pagamentos v2"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Descrição</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Objetivo e escopo deste épico..."
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none"
+            />
+          </div>
+
+          {/* Stream */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Stream / Área</label>
+            <select
+              value={form.stream}
+              onChange={(e) => setForm((f) => ({ ...f, stream: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+            >
+              {STREAMS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Status + Priority */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Status</label>
+              <select
+                value={form.status}
+                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as EpicStatus }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+              >
+                {(Object.entries(STATUS_META) as [EpicStatus, { label: string }][]).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
             </div>
-            <div className="flex flex-1">
-              {quarters.map((q) => (
-                <div
-                  key={q.label}
-                  className="flex-1 text-center py-3 border-r border-gray-100 last:border-r-0 bg-gray-50"
-                >
-                  <p className="text-xs font-bold text-gray-700">{q.label}</p>
-                </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Prioridade</label>
+              <select
+                value={form.priority}
+                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as EpicPriority }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+              >
+                {(Object.entries(PRIORITY_META) as [EpicPriority, { label: string }][]).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Data de Início</label>
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Data de Fim</label>
+              <input
+                type="date"
+                value={form.end_date}
+                onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+          </div>
+
+          {/* Color */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Cor do Épico</label>
+            <div className="flex gap-2 flex-wrap">
+              {COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, color: c.id }))}
+                  className={`w-7 h-7 rounded-full ${c.bg} transition-transform ${
+                    form.color === c.id
+                      ? "ring-2 ring-offset-2 ring-gray-500 scale-110"
+                      : "opacity-60 hover:opacity-100 hover:scale-105"
+                  }`}
+                />
               ))}
             </div>
           </div>
 
-          {/* Month sub-headers */}
-          <div className="flex border-t border-gray-100">
-            <div className="w-48 shrink-0 border-r border-gray-100" />
-            {months.map((m, i) => (
-              <div
-                key={i}
-                className="flex-1 text-center py-2 border-r border-gray-100 last:border-r-0"
-              >
-                <p className="text-[10px] font-medium text-gray-400">{m}</p>
+          {/* Sprints */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
+              Sprints associadas
+            </label>
+            <p className="text-[11px] text-gray-400 mb-2">
+              Uma sprint pertence a apenas um épico. Você pode vincular várias sprints a este épico.
+            </p>
+            {allSprints.length === 0 ? (
+              <p className="text-xs text-gray-400 py-2">Nenhuma sprint cadastrada ainda</p>
+            ) : (
+              <div className="border border-gray-100 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                {allSprints.map((sprint) => {
+                  const checked = selectedSprintIds.includes(sprint.id);
+                  const takenByOther = sprint.epic_id && !checked;
+                  return (
+                    <label
+                      key={sprint.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-gray-50 last:border-0 transition-colors ${
+                        checked ? "bg-blue-50" : "hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSprint(sprint.id)}
+                        className="accent-blue-600 w-3.5 h-3.5 shrink-0"
+                      />
+                      <span className="text-sm text-gray-700 flex-1 truncate">{sprint.name}</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${
+                        sprint.status === "active"    ? "bg-blue-50 text-blue-600" :
+                        sprint.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                        "bg-gray-100 text-gray-500"
+                      }`}>
+                        {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : "Planejando"}
+                      </span>
+                      {takenByOther && (
+                        <span className="text-[10px] text-amber-500 font-medium shrink-0">vinculada</span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
 
-        {/* Stream rows */}
-        {streams.map((stream) => {
-          const streamEpics = epics.filter((e) => e.stream === stream);
-          return (
-            <div key={stream} className="flex border-b border-gray-100 last:border-b-0 min-h-16">
-              {/* Stream label */}
-              <div className="w-48 shrink-0 px-5 py-4 border-r border-gray-100 flex items-center">
-                <p className="text-xs font-semibold text-gray-700">{stream}</p>
-              </div>
-
-              {/* Timeline cells */}
-              <div className="flex flex-1 relative py-3">
-                {/* Grid lines */}
-                {months.map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 border-r border-gray-50 last:border-r-0"
-                  />
-                ))}
-
-                {/* Epics */}
-                {streamEpics.map((epic) => (
-                  <div
-                    key={epic.id}
-                    className="absolute top-3 bottom-3 flex items-center group"
-                    style={{
-                      left: `${(epic.start / months.length) * 100}%`,
-                      width: `${(epic.span / months.length) * 100}%`,
-                      paddingLeft: "4px",
-                      paddingRight: "4px",
-                    }}
-                  >
-                    <div
-                      className={`${epic.color} rounded-lg px-3 py-1.5 w-full cursor-pointer opacity-90 hover:opacity-100 transition-opacity shadow-sm`}
-                    >
-                      <p className="text-[10px] font-bold text-white leading-snug truncate">
-                        #{epic.id} {epic.title}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Epic List */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-900">Todos os Épicos</h2>
-          <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
-            Ordenar por prioridade <ChevronDown size={12} />
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 text-sm text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            {saving ? "Salvando..." : "Criar Épico"}
           </button>
         </div>
+      </form>
+    </div>
+  );
+}
 
-        <div className="divide-y divide-gray-50">
-          {epics.map((epic) => (
-            <div key={epic.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors">
-              <div className={`w-2 h-8 rounded-full ${epic.color} shrink-0`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800">
-                  <span className="text-gray-400 mr-2 text-xs">#{epic.id}</span>
-                  {epic.title}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">{epic.stream} • {epic.quarter}</p>
-              </div>
-              <span
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${priorityColors[epic.priority]}`}
-              >
-                {epic.priority}
-              </span>
-              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${epic.statusColor}`}>
-                {epic.status}
-              </span>
+// ─── Page ──────────────────────────────────────────────────────
+export default function RoadmapPage() {
+  const supabase = createClient();
+  const [epics, setEpics] = useState<Epic[]>([]);
+  const [allSprints, setAllSprints] = useState<Sprint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const [{ data: epicData }, { data: sprintData }] = await Promise.all([
+      supabase.from("epics").select("*, sprints(*)").order("created_at", { ascending: true }),
+      supabase.from("sprints").select("*").order("created_at", { ascending: true }),
+    ]);
+    setEpics((epicData as Epic[]) ?? []);
+    setAllSprints(sprintData ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const { months, quarters, timelineStart, totalMonths } = useMemo(
+    () => buildTimeline(epics),
+    [epics]
+  );
+
+  const streams = useMemo(() => Array.from(new Set(epics.map((e) => e.stream))), [epics]);
+
+  const stats = useMemo(() => ({
+    total:       epics.length,
+    in_progress: epics.filter((e) => e.status === "in_progress").length,
+    completed:   epics.filter((e) => e.status === "completed").length,
+    delayed:     epics.filter((e) => e.status === "delayed").length,
+  }), [epics]);
+
+  function handleCreated(epic: Epic) {
+    setEpics((prev) => [...prev, epic]);
+    if (epic.sprints?.length) {
+      const ids = new Set(epic.sprints.map((s) => s.id));
+      setAllSprints((prev) =>
+        prev.map((s) => (ids.has(s.id) ? { ...s, epic_id: epic.id } : s))
+      );
+    }
+    setShowModal(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="animate-spin text-blue-500" size={28} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Layers size={14} className="text-white" />
+          </div>
+          <span className="text-sm font-bold text-gray-900">Roadmap do Produto</span>
+          <span className="text-xs text-gray-400 ml-1">· Visão trimestral por épicos</span>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2 hover:bg-blue-700 transition-colors"
+        >
+          <Plus size={14} />
+          Novo Épico
+        </button>
+      </div>
+
+      <div className="p-6 space-y-5">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { label: "Total de Épicos",  value: stats.total,       color: "text-gray-900" },
+            { label: "Em Progresso",     value: stats.in_progress, color: "text-blue-600" },
+            { label: "Concluídos",       value: stats.completed,   color: "text-emerald-600" },
+            { label: "Atrasados",        value: stats.delayed,     color: "text-red-500" },
+          ].map((s) => (
+            <div key={s.label} className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
+              <p className="text-xs text-gray-500 mb-1">{s.label}</p>
+              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
             </div>
           ))}
         </div>
+
+        {/* Timeline */}
+        {epics.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <div style={{ minWidth: `${192 + totalMonths * 80}px` }}>
+                {/* Quarter headers */}
+                <div className="border-b border-gray-100 flex">
+                  <div className="w-48 shrink-0 px-5 py-3 border-r border-gray-100 bg-gray-50">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Stream</p>
+                  </div>
+                  <div className="flex flex-1">
+                    {quarters.map((q) => (
+                      <div
+                        key={q.label}
+                        className="text-center py-3 border-r border-gray-100 last:border-r-0 bg-gray-50"
+                        style={{ flex: q.count }}
+                      >
+                        <p className="text-xs font-bold text-gray-700">{q.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Month sub-headers */}
+                <div className="flex border-b border-gray-100">
+                  <div className="w-48 shrink-0 border-r border-gray-100" />
+                  {months.map((m, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 text-center py-2 border-r border-gray-100 last:border-r-0"
+                    >
+                      <p className="text-[10px] font-medium text-gray-400 capitalize">{m.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Stream rows */}
+                {streams.map((stream) => {
+                  const streamEpics = epics.filter((e) => e.stream === stream);
+                  return (
+                    <div key={stream} className="flex border-b border-gray-100 last:border-b-0 min-h-16">
+                      <div className="w-48 shrink-0 px-5 py-4 border-r border-gray-100 flex items-center">
+                        <p className="text-xs font-semibold text-gray-700">{stream}</p>
+                      </div>
+                      <div className="flex flex-1 relative py-3">
+                        {months.map((_, i) => (
+                          <div key={i} className="flex-1 border-r border-gray-50 last:border-r-0" />
+                        ))}
+                        {streamEpics.map((epic) => {
+                          const pos = epicPosition(epic, timelineStart, totalMonths);
+                          if (!pos) return null;
+                          return (
+                            <div
+                              key={epic.id}
+                              className="absolute top-3 bottom-3 px-1 flex items-center"
+                              style={{ left: `${pos.left}%`, width: `${pos.width}%` }}
+                            >
+                              <div
+                                title={epic.title}
+                                className={`${colorBg(epic.color)} rounded-lg px-3 py-1.5 w-full cursor-pointer opacity-90 hover:opacity-100 transition-opacity shadow-sm`}
+                              >
+                                <p className="text-[10px] font-bold text-white leading-snug truncate">
+                                  {epic.title}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Epic list */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-bold text-gray-900">Todos os Épicos</h2>
+          </div>
+
+          {epics.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center">
+                <Layers size={24} className="text-blue-500" />
+              </div>
+              <div>
+                <p className="text-gray-700 font-semibold">Nenhum épico criado</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Épicos agrupam sprints em iniciativas maiores do roadmap
+                </p>
+              </div>
+              <button
+                onClick={() => setShowModal(true)}
+                className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2.5 hover:bg-blue-700 transition-colors"
+              >
+                <Plus size={14} />
+                Criar primeiro épico
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {epics.map((epic) => {
+                const sprintCount = epic.sprints?.length ?? 0;
+                return (
+                  <div
+                    key={epic.id}
+                    className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors"
+                  >
+                    <div className={`w-2 h-8 rounded-full ${colorBg(epic.color)} shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{epic.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {epic.stream}
+                        {sprintCount > 0 && ` · ${sprintCount} sprint${sprintCount > 1 ? "s" : ""}`}
+                        {epic.start_date && ` · ${new Date(epic.start_date).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
+                        {epic.end_date   && ` → ${new Date(epic.end_date  ).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
+                      </p>
+                    </div>
+                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${PRIORITY_META[epic.priority].color}`}>
+                      {PRIORITY_META[epic.priority].label}
+                    </span>
+                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${STATUS_META[epic.status].color}`}>
+                      {STATUS_META[epic.status].label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
+
+      {showModal && (
+        <EpicModal
+          allSprints={allSprints}
+          onClose={() => setShowModal(false)}
+          onCreated={handleCreated}
+        />
+      )}
     </div>
   );
 }

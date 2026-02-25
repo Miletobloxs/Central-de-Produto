@@ -14,6 +14,7 @@ export interface Sprint {
   velocity?: number;
   created_at: string;
   tasks?: Task[];
+  epic_id?: string | null;
 }
 
 export interface Task {
