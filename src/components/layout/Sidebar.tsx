@@ -18,6 +18,8 @@ import {
   BookOpen,
   Building2,
   Flag,
+  FileText,
+  GitBranch,
 } from "lucide-react";
 
 type NavItem = {
@@ -59,6 +61,13 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/feedback", label: "Feedback / NPS", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Comunicação",
+    items: [
+      { href: "/sprint-review", label: "Sprint Review", icon: FileText },
+      { href: "/decisions", label: "Mural de Decisões", icon: GitBranch },
     ],
   },
   {
