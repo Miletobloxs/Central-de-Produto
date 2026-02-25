@@ -2,12 +2,26 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Sanitiza: remove espaços, \r e aspas que possam ter vindo do .env
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    ?.trim()
+    .replace(/\r/g, "")
+    .replace(/^["']|["']$/g, "");
 
-  // Se as vars de ambiente não estiverem disponíveis no proxy,
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ?.trim()
+    .replace(/\r/g, "")
+    .replace(/^["']|["']$/g, "");
+
+  // Se as vars não estiverem disponíveis ou o URL for inválido,
   // deixa o request passar — o layout (server component) cuida da auth.
   if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.next({ request });
+  }
+
+  try {
+    new URL(supabaseUrl);
+  } catch {
     return NextResponse.next({ request });
   }
 

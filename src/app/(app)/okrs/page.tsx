@@ -1,499 +1,482 @@
 "use client";
 
-import { useState } from "react";
-import { Link2, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { Objective, KeyResult, OKRStatus } from "@/types/product";
+import {
+  Target,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  X,
+  TrendingUp,
+  Check,
+  RefreshCw,
+} from "lucide-react";
 
-type Quarter = "Q4 2023" | "Q1 2024" | "Q2 2024";
-type KRStatus = "no-prazo" | "em-risco" | "atrasado" | "concluido";
+// ─── Constantes ───────────────────────────────────────────────
+const QUARTERS = ["Q4 2025", "Q1 2026", "Q2 2026", "Q3 2026"];
 
-interface KeyResult {
-  id: string;
-  title: string;
-  current: string;
-  target: string;
-  progress: number;
-  status: KRStatus;
-  linkedMetric: string | null;
-  linkedValue: string | null;
-  unit: string;
-  trendUp: boolean;
-}
-
-interface Objective {
-  id: string;
-  title: string;
-  owner: string;
-  initials: string;
-  avatarColor: string;
-  progress: number;
-  keyResults: KeyResult[];
-}
-
-const okrData: Record<Quarter, Objective[]> = {
-  "Q4 2023": [
-    {
-      id: "O1",
-      title: "Expandir capacidade técnica e estabilidade da plataforma",
-      owner: "Sofia Lima",
-      initials: "SL",
-      avatarColor: "bg-pink-200 text-pink-800",
-      progress: 68,
-      keyResults: [
-        {
-          id: "KR1.1",
-          title: "Reduzir tempo de resposta da API para < 200ms (P99)",
-          current: "280ms",
-          target: "200ms",
-          progress: 58,
-          status: "em-risco",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "ms",
-          trendUp: false,
-        },
-        {
-          id: "KR1.2",
-          title: "Atingir 99.9% de uptime mensal",
-          current: "99.7%",
-          target: "99.9%",
-          progress: 80,
-          status: "em-risco",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "%",
-          trendUp: true,
-        },
-        {
-          id: "KR1.3",
-          title: "Completar migração de infraestrutura para Supabase",
-          current: "80%",
-          target: "100%",
-          progress: 80,
-          status: "no-prazo",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "%",
-          trendUp: true,
-        },
-      ],
-    },
-    {
-      id: "O2",
-      title: "Crescer e reter a base de usuários ativos da plataforma",
-      owner: "André Mileto",
-      initials: "AM",
-      avatarColor: "bg-amber-200 text-amber-800",
-      progress: 74,
-      keyResults: [
-        {
-          id: "KR2.1",
-          title: "Atingir 50 mil usuários ativos mensais",
-          current: "45.2k",
-          target: "50k",
-          progress: 90,
-          status: "no-prazo",
-          linkedMetric: "Usuários Ativos",
-          linkedValue: "45.2k",
-          unit: "k",
-          trendUp: true,
-        },
-        {
-          id: "KR2.2",
-          title: "Reduzir Churn Rate para 1.5%",
-          current: "2.1%",
-          target: "1.5%",
-          progress: 54,
-          status: "em-risco",
-          linkedMetric: "Churn Rate",
-          linkedValue: "2.1%",
-          unit: "%",
-          trendUp: false,
-        },
-        {
-          id: "KR2.3",
-          title: "Elevar NPS geral acima de 8.5",
-          current: "8.4",
-          target: "8.5",
-          progress: 95,
-          status: "no-prazo",
-          linkedMetric: "NPS Geral",
-          linkedValue: "8.4",
-          unit: "pts",
-          trendUp: true,
-        },
-        {
-          id: "KR2.4",
-          title: "Taxa de conversão de leads acima de 15%",
-          current: "12.5%",
-          target: "15%",
-          progress: 63,
-          status: "em-risco",
-          linkedMetric: "Conversão",
-          linkedValue: "12.5%",
-          unit: "%",
-          trendUp: true,
-        },
-      ],
-    },
-    {
-      id: "O3",
-      title: "Aumentar resultado financeiro e retenção de receita",
-      owner: "André Mileto",
-      initials: "AM",
-      avatarColor: "bg-amber-200 text-amber-800",
-      progress: 52,
-      keyResults: [
-        {
-          id: "KR3.1",
-          title: "Crescer receita mensal para R$ 2M",
-          current: "R$ 1.2M",
-          target: "R$ 2M",
-          progress: 60,
-          status: "em-risco",
-          linkedMetric: "Resultado Mês",
-          linkedValue: "R$ 1.2M",
-          unit: "R$",
-          trendUp: true,
-        },
-        {
-          id: "KR3.2",
-          title: "Elevar LTV médio por investidor para R$ 600",
-          current: "R$ 450",
-          target: "R$ 600",
-          progress: 75,
-          status: "no-prazo",
-          linkedMetric: "LTV",
-          linkedValue: "R$ 450",
-          unit: "R$",
-          trendUp: true,
-        },
-      ],
-    },
-  ],
-  "Q1 2024": [
-    {
-      id: "O4",
-      title: "Lançar módulo de antecipação de recebíveis",
-      owner: "Lucas Mendes",
-      initials: "LM",
-      avatarColor: "bg-emerald-200 text-emerald-800",
-      progress: 20,
-      keyResults: [
-        {
-          id: "KR4.1",
-          title: "Homologar integração com 2 parceiros de crédito",
-          current: "0",
-          target: "2",
-          progress: 0,
-          status: "no-prazo",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "parceiros",
-          trendUp: true,
-        },
-        {
-          id: "KR4.2",
-          title: "Processar R$ 5M em operações de antecipação no Q1",
-          current: "R$ 0",
-          target: "R$ 5M",
-          progress: 0,
-          status: "no-prazo",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "R$",
-          trendUp: true,
-        },
-      ],
-    },
-    {
-      id: "O5",
-      title: "Evoluir plataforma mobile e aumentar adoção",
-      owner: "Carla Rodrigues",
-      initials: "CR",
-      avatarColor: "bg-purple-200 text-purple-800",
-      progress: 15,
-      keyResults: [
-        {
-          id: "KR5.1",
-          title: "Lançar redesign do Checkout Mobile",
-          current: "0%",
-          target: "100%",
-          progress: 15,
-          status: "no-prazo",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "%",
-          trendUp: true,
-        },
-        {
-          id: "KR5.2",
-          title: "Aumentar sessões mobile/web para 60%",
-          current: "48%",
-          target: "60%",
-          progress: 40,
-          status: "no-prazo",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "%",
-          trendUp: true,
-        },
-      ],
-    },
-  ],
-  "Q2 2024": [
-    {
-      id: "O6",
-      title: "Estruturar plataforma de Analytics avançado",
-      owner: "Sofia Lima",
-      initials: "SL",
-      avatarColor: "bg-pink-200 text-pink-800",
-      progress: 5,
-      keyResults: [
-        {
-          id: "KR6.1",
-          title: "Lançar Analytics Platform v2 em produção",
-          current: "0%",
-          target: "100%",
-          progress: 5,
-          status: "no-prazo",
-          linkedMetric: null,
-          linkedValue: null,
-          unit: "%",
-          trendUp: true,
-        },
-      ],
-    },
-  ],
+const STATUS_CONFIG: Record<OKRStatus, { label: string; color: string; dot: string }> = {
+  on_track:  { label: "No Prazo",  color: "text-emerald-600 bg-emerald-50", dot: "bg-emerald-500" },
+  at_risk:   { label: "Em Risco",  color: "text-amber-600 bg-amber-50",    dot: "bg-amber-400"  },
+  off_track: { label: "Atrasado",  color: "text-red-600 bg-red-50",        dot: "bg-red-500"    },
+  completed: { label: "Concluído", color: "text-gray-500 bg-gray-100",     dot: "bg-gray-400"   },
 };
 
-const statusConfig: Record<KRStatus, { label: string; color: string; bg: string }> = {
-  "no-prazo": { label: "No Prazo", color: "text-emerald-600", bg: "bg-emerald-50" },
-  "em-risco": { label: "Em Risco", color: "text-amber-600", bg: "bg-amber-50" },
-  "atrasado": { label: "Atrasado", color: "text-red-600", bg: "bg-red-50" },
-  "concluido": { label: "Concluído", color: "text-blue-600", bg: "bg-blue-50" },
-};
-
-function ProgressRing({ value, size = 44 }: { value: number; size?: number }) {
-  const r = (size - 8) / 2;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (value / 100) * circ;
-  const color = value >= 80 ? "#10b981" : value >= 50 ? "#f59e0b" : "#ef4444";
-
+// ─── Progress Ring ────────────────────────────────────────────
+function Ring({ pct, size = 40 }: { pct: number; size?: number }) {
+  const r = size * 0.38;
+  const c = 2 * Math.PI * r;
+  const offset = c - (pct / 100) * c;
+  const color = pct >= 70 ? "#22c55e" : pct >= 40 ? "#f59e0b" : "#ef4444";
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F1F3F5" strokeWidth="5" />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 -rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} stroke="#f3f4f6" strokeWidth={4} fill="none" />
       <circle
         cx={size / 2} cy={size / 2} r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="5"
-        strokeDasharray={`${circ}`}
-        strokeDashoffset={offset}
+        stroke={color} strokeWidth={4} fill="none"
+        strokeDasharray={c} strokeDashoffset={offset}
         strokeLinecap="round"
       />
-      <text
-        x={size / 2} y={size / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        className="rotate-90"
-        style={{
-          transform: `rotate(90deg)`,
-          transformOrigin: `${size / 2}px ${size / 2}px`,
-          fontSize: "10px",
-          fontWeight: "700",
-          fill: color,
-        }}
-      >
-        {value}%
-      </text>
     </svg>
   );
 }
 
+// ─── Check-in Modal ───────────────────────────────────────────
+function CheckinModal({
+  kr,
+  onClose,
+  onSave,
+}: {
+  kr: KeyResult;
+  onClose: () => void;
+  onSave: (value: number, note: string) => void;
+}) {
+  const [value, setValue] = useState(String(kr.current_value));
+  const [note, setNote] = useState("");
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <h3 className="text-sm font-bold text-gray-900 mb-1">Check-in de Progresso</h3>
+        <p className="text-xs text-gray-500 mb-4 line-clamp-2">{kr.title}</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Valor atual ({kr.unit})
+            </label>
+            <input
+              autoFocus
+              type="number"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+              placeholder={String(kr.target_value)}
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Meta: {kr.target_value}{kr.unit}</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Nota (opcional)
+            </label>
+            <textarea
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
+              placeholder="O que mudou?"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => onSave(parseFloat(value) || 0, note)}
+            className="flex-1 bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-700"
+          >
+            Salvar Check-in
+          </button>
+          <button onClick={onClose} className="px-4 text-sm text-gray-500 hover:text-gray-700">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────
 export default function OKRsPage() {
-  const [activeQuarter, setActiveQuarter] = useState<Quarter>("Q4 2023");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ O1: true, O2: true, O3: true });
+  const supabase = createClient();
 
-  const objectives = okrData[activeQuarter];
-  const totalKRs = objectives.flatMap((o) => o.keyResults).length;
-  const onTrackKRs = objectives.flatMap((o) => o.keyResults).filter((kr) => kr.status === "no-prazo").length;
-  const atRiskKRs = objectives.flatMap((o) => o.keyResults).filter((kr) => kr.status === "em-risco").length;
-  const avgProgress = Math.round(objectives.reduce((sum, o) => sum + o.progress, 0) / objectives.length);
+  const [quarter, setQuarter] = useState("Q1 2026");
+  const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [checkingIn, setCheckingIn] = useState<KeyResult | null>(null);
 
-  const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  // New objective form
+  const [addingObj, setAddingObj] = useState(false);
+  const [newObjTitle, setNewObjTitle] = useState("");
+
+  // New KR form per objective
+  const [addingKRFor, setAddingKRFor] = useState<string | null>(null);
+  const [newKRTitle, setNewKRTitle] = useState("");
+  const [newKRTarget, setNewKRTarget] = useState("100");
+  const [newKRUnit, setNewKRUnit] = useState("%");
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const { data: objs } = await supabase
+      .from("objectives")
+      .select("*, key_results(*)")
+      .eq("quarter", quarter)
+      .order("created_at", { ascending: true });
+    setObjectives(objs ?? []);
+    if (objs && objs.length > 0) {
+      setExpanded(new Set(objs.map((o: Objective) => o.id)));
+    }
+    setLoading(false);
+  }, [supabase, quarter]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  async function createObjective() {
+    if (!newObjTitle.trim()) return;
+    const { data } = await supabase
+      .from("objectives")
+      .insert({ title: newObjTitle.trim(), quarter, status: "on_track" })
+      .select()
+      .single();
+    if (data) setObjectives((prev) => [...prev, { ...data, key_results: [] }]);
+    setNewObjTitle("");
+    setAddingObj(false);
+  }
+
+  async function deleteObjective(id: string) {
+    await supabase.from("objectives").delete().eq("id", id);
+    setObjectives((prev) => prev.filter((o) => o.id !== id));
+  }
+
+  async function createKR(objectiveId: string) {
+    if (!newKRTitle.trim()) return;
+    const { data } = await supabase
+      .from("key_results")
+      .insert({
+        title: newKRTitle.trim(),
+        objective_id: objectiveId,
+        target_value: parseFloat(newKRTarget) || 100,
+        current_value: 0,
+        unit: newKRUnit,
+        status: "on_track",
+      })
+      .select()
+      .single();
+    if (data) {
+      setObjectives((prev) =>
+        prev.map((o) =>
+          o.id === objectiveId
+            ? { ...o, key_results: [...(o.key_results ?? []), data] }
+            : o
+        )
+      );
+    }
+    setNewKRTitle("");
+    setNewKRTarget("100");
+    setAddingKRFor(null);
+  }
+
+  async function deleteKR(objectiveId: string, krId: string) {
+    await supabase.from("key_results").delete().eq("id", krId);
+    setObjectives((prev) =>
+      prev.map((o) =>
+        o.id === objectiveId
+          ? { ...o, key_results: (o.key_results ?? []).filter((kr) => kr.id !== krId) }
+          : o
+      )
+    );
+  }
+
+  async function saveCheckin(kr: KeyResult, value: number, note: string) {
+    // Insert check-in record
+    await supabase.from("checkins").insert({
+      key_result_id: kr.id,
+      value,
+      note: note || null,
+    });
+
+    // Update KR current value
+    const newStatus: OKRStatus =
+      value >= kr.target_value ? "completed"
+      : value / kr.target_value >= 0.7 ? "on_track"
+      : value / kr.target_value >= 0.4 ? "at_risk"
+      : "off_track";
+
+    await supabase
+      .from("key_results")
+      .update({ current_value: value, status: newStatus })
+      .eq("id", kr.id);
+
+    setObjectives((prev) =>
+      prev.map((o) => ({
+        ...o,
+        key_results: (o.key_results ?? []).map((k) =>
+          k.id === kr.id ? { ...k, current_value: value, status: newStatus } : k
+        ),
+      }))
+    );
+    setCheckingIn(null);
+  }
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function objProgress(obj: Objective) {
+    const krs = obj.key_results ?? [];
+    if (krs.length === 0) return 0;
+    const avg = krs.reduce((s, kr) => s + Math.min(100, (kr.current_value / (kr.target_value || 1)) * 100), 0) / krs.length;
+    return Math.round(avg);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="animate-spin text-blue-500" size={28} />
+      </div>
+    );
+  }
+
+  const overallProgress = objectives.length
+    ? Math.round(objectives.reduce((s, o) => s + objProgress(o), 0) / objectives.length)
+    : 0;
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">OKRs & Metas</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Objetivos e Key Results por quarter</p>
-        </div>
+      <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center gap-4 shrink-0">
         <div className="flex items-center gap-2">
-          {(["Q4 2023", "Q1 2024", "Q2 2024"] as Quarter[]).map((q) => (
+          <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Target size={14} className="text-white" />
+          </div>
+          <span className="text-sm font-bold text-gray-900">OKRs & Metas</span>
+        </div>
+
+        {/* Quarter selector */}
+        <div className="flex gap-1">
+          {QUARTERS.map((q) => (
             <button
               key={q}
-              onClick={() => setActiveQuarter(q)}
-              className={`text-sm font-semibold px-4 py-2 rounded-xl transition-all ${
-                activeQuarter === q
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+              onClick={() => setQuarter(q)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${
+                quarter === q ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
               }`}
             >
               {q}
             </button>
           ))}
-          <button className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2.5 hover:bg-blue-700 transition-colors ml-2">
-            <Plus size={14} />
-            Novo Objetivo
+        </div>
+
+        <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <TrendingUp size={13} className="text-emerald-500" />
+            <span className="font-semibold">{overallProgress}%</span>
+            <span>progresso geral</span>
+          </div>
+          <button
+            onClick={() => setAddingObj(true)}
+            className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-blue-700"
+          >
+            <Plus size={13} /> Objetivo
           </button>
         </div>
       </div>
 
-      {/* Quarter Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "Progresso Médio", value: `${avgProgress}%`, color: "text-blue-600" },
-          { label: "Key Results", value: String(totalKRs), color: "text-gray-900" },
-          { label: "No Prazo", value: String(onTrackKRs), color: "text-emerald-600" },
-          { label: "Em Risco", value: String(atRiskKRs), color: "text-amber-600" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
-            <p className="text-xs text-gray-500 mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Dashboard link info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center gap-2">
-        <Link2 size={14} className="text-blue-600 shrink-0" />
-        <p className="text-xs text-blue-700">
-          <span className="font-bold">KRs vinculados ao Dashboard</span> puxam dados em tempo real das métricas da plataforma. Valores atualizados automaticamente a cada sessão.
-        </p>
-      </div>
-
-      {/* Objectives */}
-      <div className="space-y-4">
-        {objectives.map((obj) => {
-          const isOpen = expanded[obj.id] !== false;
-          return (
-            <div key={obj.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              {/* Objective Header */}
-              <button
-                onClick={() => toggle(obj.id)}
-                className="w-full flex items-center gap-4 px-6 py-5 hover:bg-gray-50/50 transition-colors text-left"
-              >
-                <ProgressRing value={obj.progress} size={48} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-bold text-gray-400">{obj.id}</span>
-                    <span className="text-[10px] text-gray-300">·</span>
-                    <span className="text-[10px] text-gray-400">{obj.keyResults.length} Key Results</span>
-                  </div>
-                  <p className="text-sm font-bold text-gray-900 leading-snug">{obj.title}</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${obj.avatarColor}`}>
-                      {obj.initials}
-                    </div>
-                    <span className="text-xs text-gray-500">{obj.owner}</span>
-                  </div>
-                  {isOpen ? (
-                    <ChevronUp size={16} className="text-gray-400" />
-                  ) : (
-                    <ChevronDown size={16} className="text-gray-400" />
-                  )}
-                </div>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {/* New objective form */}
+        {addingObj && (
+          <div className="bg-white rounded-2xl border border-blue-200 p-4 shadow-sm">
+            <input
+              autoFocus
+              value={newObjTitle}
+              onChange={(e) => setNewObjTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") createObjective(); if (e.key === "Escape") setAddingObj(false); }}
+              placeholder="Título do objetivo…"
+              className="w-full text-sm font-medium outline-none placeholder-gray-400 text-gray-800 mb-3"
+            />
+            <div className="flex gap-2">
+              <button onClick={createObjective} disabled={!newObjTitle.trim()} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 disabled:opacity-50">
+                Criar Objetivo
               </button>
+              <button onClick={() => setAddingObj(false)} className="text-xs text-gray-400 hover:text-gray-600 px-2">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
 
-              {/* Key Results */}
-              {isOpen && (
-                <div className="border-t border-gray-100 divide-y divide-gray-50">
-                  {obj.keyResults.map((kr) => {
-                    const sc = statusConfig[kr.status];
-                    return (
-                      <div key={kr.id} className="px-6 py-4 flex items-center gap-4">
-                        {/* KR ID */}
-                        <span className="text-[10px] font-bold text-gray-400 w-12 shrink-0">{kr.id}</span>
-
-                        {/* KR Title + linked badge */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <p className="text-sm font-medium text-gray-800">{kr.title}</p>
-                            {kr.linkedMetric && (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
-                                <Link2 size={9} />
-                                Dashboard: {kr.linkedMetric}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Progress bar */}
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${
-                                  kr.progress >= 80
-                                    ? "bg-emerald-500"
-                                    : kr.progress >= 50
-                                    ? "bg-amber-400"
-                                    : "bg-red-400"
-                                }`}
-                                style={{ width: `${kr.progress}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-bold text-gray-500 w-8 text-right shrink-0">
-                              {kr.progress}%
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Current vs Target */}
-                        <div className="text-right shrink-0 w-40">
-                          <div className="flex items-center justify-end gap-2">
-                            <div>
-                              <p className="text-[10px] text-gray-400">Atual</p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {kr.linkedValue ?? kr.current}
-                              </p>
-                            </div>
-                            <div className="text-gray-300">→</div>
-                            <div>
-                              <p className="text-[10px] text-gray-400">Meta</p>
-                              <p className="text-sm font-bold text-gray-500">{kr.target}</p>
-                            </div>
-                            {kr.trendUp ? (
-                              <TrendingUp size={14} className="text-emerald-500 ml-1" />
-                            ) : (
-                              <TrendingDown size={14} className="text-red-500 ml-1" />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Status badge */}
-                        <span className={`text-[11px] font-semibold px-3 py-1 rounded-full shrink-0 ${sc.bg} ${sc.color}`}>
-                          {sc.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-
-                  {/* Add KR */}
-                  <div className="px-6 py-3">
-                    <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-600 transition-colors">
-                      <Plus size={12} />
-                      Adicionar Key Result
+        {objectives.length === 0 && !addingObj ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+            <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center">
+              <Target size={24} className="text-blue-500" />
+            </div>
+            <div>
+              <p className="text-gray-700 font-semibold">Sem objetivos em {quarter}</p>
+              <p className="text-sm text-gray-400 mt-1">Crie um objetivo para começar</p>
+            </div>
+            <button onClick={() => setAddingObj(true)} className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700">
+              Criar Objetivo
+            </button>
+          </div>
+        ) : (
+          objectives.map((obj) => {
+            const pct = objProgress(obj);
+            const isOpen = expanded.has(obj.id);
+            const st = STATUS_CONFIG[obj.status];
+            return (
+              <div key={obj.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {/* Objective header */}
+                <div
+                  className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                  onClick={() => toggleExpand(obj.id)}
+                >
+                  <Ring pct={pct} size={44} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-gray-900 truncate">{obj.title}</p>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${st.color}`}>
+                        {st.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {(obj.key_results ?? []).length} Key Results · {pct}% concluído
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteObjective(obj.id); }}
+                      className="text-gray-300 hover:text-red-400 transition-colors"
+                    >
+                      <X size={14} />
                     </button>
+                    {isOpen ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
                   </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {/* Key Results */}
+                {isOpen && (
+                  <div className="border-t border-gray-50 px-4 pb-4 space-y-2 pt-3">
+                    {(obj.key_results ?? []).map((kr) => {
+                      const krPct = Math.min(100, Math.round((kr.current_value / (kr.target_value || 1)) * 100));
+                      const krSt = STATUS_CONFIG[kr.status];
+                      return (
+                        <div key={kr.id} className="flex items-center gap-3 py-2 px-3 rounded-xl bg-gray-50/70 group">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-xs font-semibold text-gray-700 truncate">{kr.title}</p>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 ${krSt.color}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full inline-block ${krSt.dot}`} />
+                                {krSt.label}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${krPct}%`,
+                                    background: krPct >= 70 ? "#22c55e" : krPct >= 40 ? "#f59e0b" : "#ef4444",
+                                  }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-bold text-gray-500 shrink-0">
+                                {kr.current_value}{kr.unit} / {kr.target_value}{kr.unit}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              onClick={() => setCheckingIn(kr)}
+                              className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors"
+                            >
+                              <RefreshCw size={10} /> Check-in
+                            </button>
+                            <button
+                              onClick={() => deleteKR(obj.id, kr.id)}
+                              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Add KR form */}
+                    {addingKRFor === obj.id ? (
+                      <div className="bg-white rounded-xl border border-blue-200 p-3 space-y-2">
+                        <input
+                          autoFocus
+                          value={newKRTitle}
+                          onChange={(e) => setNewKRTitle(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Escape") setAddingKRFor(null); }}
+                          placeholder="Título do Key Result…"
+                          className="w-full text-xs outline-none placeholder-gray-400 text-gray-800"
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={newKRTarget}
+                            onChange={(e) => setNewKRTarget(e.target.value)}
+                            className="w-20 text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none"
+                            placeholder="Meta"
+                          />
+                          <input
+                            value={newKRUnit}
+                            onChange={(e) => setNewKRUnit(e.target.value)}
+                            className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none"
+                            placeholder="Unidade"
+                          />
+                          <button
+                            onClick={() => createKR(obj.id)}
+                            disabled={!newKRTitle.trim()}
+                            className="flex items-center gap-1 bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            <Check size={11} /> Salvar
+                          </button>
+                          <button onClick={() => setAddingKRFor(null)} className="text-xs text-gray-400 hover:text-gray-600">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAddingKRFor(obj.id)}
+                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-600 transition-colors py-1"
+                      >
+                        <Plus size={12} /> Adicionar Key Result
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
+
+      {checkingIn && (
+        <CheckinModal
+          kr={checkingIn}
+          onClose={() => setCheckingIn(null)}
+          onSave={(v, n) => saveCheckin(checkingIn, v, n)}
+        />
+      )}
     </div>
   );
 }
