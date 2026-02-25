@@ -1,25 +1,33 @@
 "use client";
 
-import { Bell, HelpCircle, Search } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Bell, HelpCircle, Search, LogOut, ChevronDown } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
-export default function Header() {
+type HeaderProps = {
+  displayName: string;
+  initials: string;
+  email: string;
+};
+
+export default function Header({ displayName, initials, email }: HeaderProps) {
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <header className="bg-white border-b border-gray-200 h-14 flex items-center px-6 gap-4 shrink-0">
-      {/* Bloxs Logo */}
-      <div className="flex items-center gap-2 mr-auto">
-        <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="1" width="4" height="4" rx="1" fill="white" />
-            <rect x="7" y="1" width="4" height="4" rx="1" fill="white" fillOpacity="0.7" />
-            <rect x="1" y="7" width="4" height="4" rx="1" fill="white" fillOpacity="0.7" />
-            <rect x="7" y="7" width="4" height="4" rx="1" fill="white" fillOpacity="0.4" />
-          </svg>
-        </div>
-        <span className="text-sm font-bold text-gray-800 tracking-wide">Bloxs</span>
-      </div>
-
       {/* Search */}
-      <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3.5 py-2 w-72">
+      <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3.5 py-2 w-72 mr-auto">
         <Search size={14} className="text-gray-400 shrink-0" />
         <input
           type="text"
@@ -37,8 +45,46 @@ export default function Header() {
         <button className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
           <HelpCircle size={16} />
         </button>
-        <div className="w-8 h-8 rounded-full bg-amber-300 flex items-center justify-center text-xs font-bold text-amber-800 ml-1">
-          AM
+
+        {/* User menu */}
+        <div className="relative ml-1">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-100 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-full bg-amber-300 flex items-center justify-center text-xs font-bold text-amber-800">
+              {initials}
+            </div>
+            <span className="text-sm font-medium text-gray-700 max-w-[120px] truncate hidden sm:block">
+              {displayName}
+            </span>
+            <ChevronDown size={13} className="text-gray-400 hidden sm:block" />
+          </button>
+
+          {menuOpen && (
+            <>
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setMenuOpen(false)}
+              />
+              {/* Dropdown */}
+              <div className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-20 py-1.5 overflow-hidden">
+                <div className="px-3.5 py-2.5 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+                  <p className="text-xs text-gray-500 truncate">{email}</p>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-60"
+                >
+                  <LogOut size={14} />
+                  {signingOut ? "Saindo..." : "Sair"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>
