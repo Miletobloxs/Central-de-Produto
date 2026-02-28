@@ -14,12 +14,12 @@ interface Epic {
   title: string;
   description?: string;
   stream: string;
-  status: EpicStatus;
-  priority: EpicPriority;
+  status: string;
+  priority: string;
   color: string;
-  start_date?: string | null;
-  end_date?: string | null;
-  created_at: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  createdAt: string;
   sprints?: Sprint[];
 }
 
@@ -70,13 +70,13 @@ function buildTimeline(epics: Epic[]) {
   let maxDate = new Date(now.getFullYear(), now.getMonth() + 11, 1);
 
   for (const e of epics) {
-    if (e.start_date) {
-      const d = new Date(e.start_date);
+    if (e.startDate) {
+      const d = new Date(e.startDate);
       const m = new Date(d.getFullYear(), d.getMonth(), 1);
       if (m < minDate) minDate = m;
     }
-    if (e.end_date) {
-      const d = new Date(e.end_date);
+    if (e.endDate) {
+      const d = new Date(e.endDate);
       const m = new Date(d.getFullYear(), d.getMonth(), 1);
       if (m > maxDate) maxDate = m;
     }
@@ -103,10 +103,10 @@ function buildTimeline(epics: Epic[]) {
 }
 
 function epicPosition(epic: Epic, timelineStart: Date, totalMonths: number) {
-  if (!epic.start_date) return null;
-  const s = new Date(epic.start_date);
-  const e = epic.end_date
-    ? new Date(epic.end_date)
+  if (!epic.startDate) return null;
+  const s = new Date(epic.startDate);
+  const e = epic.endDate
+    ? new Date(epic.endDate)
     : new Date(s.getFullYear(), s.getMonth() + 1, 0);
   const startOff = diffMonths(timelineStart, new Date(s.getFullYear(), s.getMonth(), 1));
   const endOff   = diffMonths(timelineStart, new Date(e.getFullYear(), e.getMonth(), 1));
@@ -171,8 +171,8 @@ function EpicModal({
         status:      form.status,
         priority:    form.priority,
         color:       form.color,
-        start_date:  form.start_date || null,
-        end_date:    form.end_date   || null,
+        startDate:  form.start_date || null,
+        endDate:    form.end_date   || null,
       })
       .select()
       .single();
@@ -405,8 +405,8 @@ export default function RoadmapPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [{ data: epicData }, { data: sprintData }] = await Promise.all([
-      supabase.from("epics").select("*, sprints(*)").order("created_at", { ascending: true }),
-      supabase.from("sprints").select("*").order("created_at", { ascending: true }),
+      supabase.from("epics").select("*, sprints(*)").order("createdAt", { ascending: true }),
+      supabase.from("sprints").select("*").order("createdAt", { ascending: true }),
     ]);
     setEpics((epicData as Epic[]) ?? []);
     setAllSprints(sprintData ?? []);
@@ -601,15 +601,15 @@ export default function RoadmapPage() {
                       <p className="text-xs text-gray-500 mt-0.5">
                         {epic.stream}
                         {sprintCount > 0 && ` · ${sprintCount} sprint${sprintCount > 1 ? "s" : ""}`}
-                        {epic.start_date && ` · ${new Date(epic.start_date).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
-                        {epic.end_date   && ` → ${new Date(epic.end_date  ).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
+                        {epic.startDate && ` · ${new Date(epic.startDate).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
+                        {epic.endDate   && ` → ${new Date(epic.endDate  ).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
                       </p>
                     </div>
-                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${PRIORITY_META[epic.priority].color}`}>
-                      {PRIORITY_META[epic.priority].label}
+                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${(PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium).color}`}>
+                      {(PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium).label}
                     </span>
-                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${STATUS_META[epic.status].color}`}>
-                      {STATUS_META[epic.status].label}
+                    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${(STATUS_META[epic.status as EpicStatus] ?? STATUS_META.planned).color}`}>
+                      {(STATUS_META[epic.status as EpicStatus] ?? STATUS_META.planned).label}
                     </span>
                   </div>
                 );

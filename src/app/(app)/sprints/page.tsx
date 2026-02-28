@@ -405,9 +405,25 @@ function KanbanColumn({
 }
 
 // ─── New Sprint Modal ─────────────────────────────────────────
-function NewSprintModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string, goal: string) => void }) {
+function NewSprintModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (name: string, goal: string, startDate: string, endDate: string) => Promise<string | null>;
+}) {
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleCreate() {
+    if (!name.trim()) return;
+    setSaving(true);
+    setError("");
+    const err = await onCreate(name.trim(), goal.trim(), startDate, endDate);
+    if (err) { setError(err); setSaving(false); }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
@@ -425,11 +441,25 @@ function NewSprintModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
               className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
               placeholder="Ex: Lançar módulo de onboarding" />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Início</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fim</label>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400" />
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{error}</p>}
         </div>
         <div className="flex gap-2 mt-5">
-          <button disabled={!name.trim()} onClick={() => onCreate(name.trim(), goal.trim())}
-            className="flex-1 bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50">
-            Criar Sprint
+          <button disabled={!name.trim() || saving} onClick={handleCreate}
+            className="flex-1 bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            {saving ? "Criando..." : "Criar Sprint"}
           </button>
           <button onClick={onClose} className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100">
             Cancelar
@@ -487,11 +517,17 @@ export default function SprintsPage() {
     await loadTasksForSprint(sprint.id);
   }
 
-  async function createSprint(name: string, goal: string) {
-    const { data } = await supabase.from("sprints")
-      .insert({ name, goal, status: "ACTIVE" }).select().single();
+  async function createSprint(name: string, goal: string, startDate: string, endDate: string): Promise<string | null> {
+    const payload: Record<string, string> = { name, goal, status: "ACTIVE" };
+    if (startDate) payload.startDate = startDate;
+    if (endDate)   payload.endDate   = endDate;
+
+    const { data, error } = await supabase.from("sprints")
+      .insert(payload).select().single();
+    if (error) return error.message;
     if (data) { setSprints((p) => [data, ...p]); setActiveSprint(data); setTasks([]); setSubtasks([]); }
     setShowNewSprint(false);
+    return null;
   }
 
   async function addTask(status: TaskStatus, title: string) {
