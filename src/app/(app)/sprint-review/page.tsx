@@ -264,7 +264,7 @@ export default function SprintReviewPage() {
   const fetchPage = useCallback(async () => {
     setLoadingPage(true);
     const [{ data: sprintData }, { data: reviewData }] = await Promise.all([
-      supabase.from("sprints").select("*").order("created_at", { ascending: false }),
+      supabase.from("sprints").select("*").order("createdAt", { ascending: false }),
       supabase.from("sprint_reviews").select("*"),
     ]);
     const s = sprintData ?? [];
@@ -421,11 +421,11 @@ export default function SprintReviewPage() {
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
-                      sprint.status === "active"    ? "bg-blue-50 text-blue-600" :
-                      sprint.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                      sprint.status === "ACTIVE"    ? "bg-blue-50 text-blue-600" :
+                      sprint.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" :
                       "bg-gray-100 text-gray-500"
                     }`}>
-                      {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : "Planejando"}
+                      {sprint.status === "ACTIVE" ? "Ativo" : sprint.status === "COMPLETED" ? "Concluído" : "Planejando"}
                     </span>
                     {hasReview && (
                       <span className="text-[10px] font-semibold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">

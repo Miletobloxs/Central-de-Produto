@@ -352,11 +352,11 @@ function EpicModal({
                       />
                       <span className="text-sm text-gray-700 flex-1 truncate">{sprint.name}</span>
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${
-                        sprint.status === "active"    ? "bg-blue-50 text-blue-600" :
-                        sprint.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                        sprint.status === "ACTIVE"    ? "bg-blue-50 text-blue-600" :
+                        sprint.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" :
                         "bg-gray-100 text-gray-500"
                       }`}>
-                        {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : "Planejando"}
+                        {sprint.status === "ACTIVE" ? "Ativo" : sprint.status === "COMPLETED" ? "Concluído" : "Planejando"}
                       </span>
                       {takenByOther && (
                         <span className="text-[10px] text-amber-500 font-medium shrink-0">vinculada</span>

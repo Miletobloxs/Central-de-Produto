@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS sprint_reviews (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sprint_id  UUID NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+  sprint_id  TEXT NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
   theme      TEXT,
   blockers   TEXT[] DEFAULT '{}',
   learnings  TEXT[] DEFAULT '{}',

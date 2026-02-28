@@ -97,8 +97,8 @@ export default function DashboardPage() {
     const { data: sprintData } = await supabase
       .from("sprints")
       .select("*")
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
+      .eq("status", "ACTIVE")
+      .order("createdAt", { ascending: false })
       .limit(1)
       .maybeSingle();
 

@@ -457,11 +457,11 @@ export default function SprintsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     const { data: sprintData } = await supabase
-      .from("sprints").select("*").order("created_at", { ascending: false });
+      .from("sprints").select("*").order("createdAt", { ascending: false });
 
     if (sprintData && sprintData.length > 0) {
       setSprints(sprintData);
-      const current = sprintData.find((s: Sprint) => s.status === "active") ?? sprintData[0];
+      const current = sprintData.find((s: Sprint) => s.status === "ACTIVE") ?? sprintData[0];
       setActiveSprint(current);
       await loadTasksForSprint(current.id);
     } else {
@@ -489,7 +489,7 @@ export default function SprintsPage() {
 
   async function createSprint(name: string, goal: string) {
     const { data } = await supabase.from("sprints")
-      .insert({ name, goal, status: "active" }).select().single();
+      .insert({ name, goal, status: "ACTIVE" }).select().single();
     if (data) { setSprints((p) => [data, ...p]); setActiveSprint(data); setTasks([]); setSubtasks([]); }
     setShowNewSprint(false);
   }
@@ -598,8 +598,8 @@ export default function SprintsPage() {
             {activeSprint?.name ?? "Nenhum sprint"}
             {activeSprint && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                activeSprint.status === "active" ? "bg-emerald-100 text-emerald-700" :
-                activeSprint.status === "planning" ? "bg-amber-100 text-amber-700" :
+                activeSprint.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" :
+                activeSprint.status === "PLANNING" ? "bg-amber-100 text-amber-700" :
                 "bg-gray-100 text-gray-500"}`}>
                 {activeSprint.status}
               </span>
