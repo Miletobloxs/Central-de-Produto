@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { BacklogItem, MoscowPriority } from "@/types/product";
-import { Plus, X, Star, Loader2, ListTodo, Pencil, Check } from "lucide-react";
+import type { BacklogItem, MoscowPriority, Sprint } from "@/types/product";
+import { Plus, X, Star, Loader2, ListTodo, Pencil, Check, ArrowRight, Zap } from "lucide-react";
 
 // ─── Constantes ───────────────────────────────────────────────
 const COLUMNS: {
@@ -24,15 +24,21 @@ const EPICS = ["Onboarding", "Investimentos", "Plataforma", "Analytics", "Infra"
 // ─── Item Card ────────────────────────────────────────────────
 function ItemCard({
   item,
+  sprints,
   onDelete,
   onUpdate,
+  onMoveToSprint,
 }: {
   item: BacklogItem;
+  sprints: Sprint[];
   onDelete: (id: string) => void;
   onUpdate: (id: string, patch: Partial<BacklogItem>) => void;
+  onMoveToSprint: (item: BacklogItem, sprintId: string) => Promise<void>;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState(item.title);
+  const [editing,       setEditing]       = useState(false);
+  const [editTitle,     setEditTitle]     = useState(item.title);
+  const [showSprintDrop, setShowSprintDrop] = useState(false);
+  const [moving,        setMoving]        = useState(false);
 
   function saveEdit() {
     if (editTitle.trim() && editTitle !== item.title) {
@@ -41,8 +47,17 @@ function ItemCard({
     setEditing(false);
   }
 
+  async function handleMove(sprintId: string) {
+    setMoving(true);
+    setShowSprintDrop(false);
+    await onMoveToSprint(item, sprintId);
+    setMoving(false);
+  }
+
+  const inSprint = !!item.sprint_id;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm group hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm group hover:shadow-md transition-shadow relative">
       {editing ? (
         <div className="flex gap-1">
           <input
@@ -62,6 +77,16 @@ function ItemCard({
             {item.title}
           </p>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {!inSprint && sprints.length > 0 && (
+              <button
+                onClick={() => setShowSprintDrop((v) => !v)}
+                disabled={moving}
+                className="text-gray-300 hover:text-blue-500 disabled:opacity-40"
+                title="Mover para sprint"
+              >
+                {moving ? <Loader2 size={11} className="animate-spin" /> : <ArrowRight size={11} />}
+              </button>
+            )}
             <button onClick={() => setEditing(true)} className="text-gray-300 hover:text-blue-500">
               <Pencil size={11} />
             </button>
@@ -72,6 +97,28 @@ function ItemCard({
         </div>
       )}
 
+      {/* Sprint dropdown */}
+      {showSprintDrop && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setShowSprintDrop(false)} />
+          <div className="absolute right-2 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px]">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1.5">
+              Mover para sprint
+            </p>
+            {sprints.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => handleMove(s.id)}
+                className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <Zap size={11} className="text-blue-500 shrink-0" />
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="flex items-center justify-between mt-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           {item.epic && (
@@ -80,6 +127,11 @@ function ItemCard({
             </span>
           )}
           <span className="text-[10px] font-bold text-gray-400">{item.story_points}pt</span>
+          {inSprint && (
+            <span className="text-[10px] font-semibold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+              <Zap size={9} /> Sprint
+            </span>
+          )}
         </div>
         <div className="flex">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -156,17 +208,19 @@ function AddItemForm({
 // ─── Page ─────────────────────────────────────────────────────
 export default function BacklogPage() {
   const supabase = createClient();
-  const [items, setItems] = useState<BacklogItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [addingIn, setAddingIn] = useState<MoscowPriority | null>(null);
+  const [items,         setItems]         = useState<BacklogItem[]>([]);
+  const [activeSprints, setActiveSprints] = useState<Sprint[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [addingIn,      setAddingIn]      = useState<MoscowPriority | null>(null);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("backlog_items")
-      .select("*")
-      .order("position", { ascending: true });
-    setItems(data ?? []);
+    const [{ data: itemData }, { data: sprintData }] = await Promise.all([
+      supabase.from("backlog_items").select("*").order("position", { ascending: true }),
+      supabase.from("sprints").select("id, name, status").in("status", ["active", "planning"]),
+    ]);
+    setItems(itemData ?? []);
+    setActiveSprints((sprintData ?? []) as Sprint[]);
     setLoading(false);
   }, [supabase]);
 
@@ -191,6 +245,25 @@ export default function BacklogPage() {
   async function updateItem(id: string, patch: Partial<BacklogItem>) {
     await supabase.from("backlog_items").update(patch).eq("id", id);
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  }
+
+  async function moveToSprint(item: BacklogItem, sprintId: string) {
+    await Promise.all([
+      supabase.from("backlog_items")
+        .update({ sprint_id: sprintId, status: "in_sprint" })
+        .eq("id", item.id),
+      supabase.from("tasks").insert({
+        title:        item.title,
+        status:       "todo",
+        sprint_id:    sprintId,
+        story_points: item.story_points,
+        epic:         item.epic ?? null,
+        priority:     "medium",
+      }),
+    ]);
+    setItems((prev) =>
+      prev.map((i) => i.id === item.id ? { ...i, sprint_id: sprintId, status: "in_sprint" } : i)
+    );
   }
 
   if (loading) {
@@ -253,7 +326,14 @@ export default function BacklogPage() {
                     />
                   )}
                   {colItems.map((item) => (
-                    <ItemCard key={item.id} item={item} onDelete={deleteItem} onUpdate={updateItem} />
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      sprints={activeSprints}
+                      onDelete={deleteItem}
+                      onUpdate={updateItem}
+                      onMoveToSprint={moveToSprint}
+                    />
                   ))}
                   {colItems.length === 0 && addingIn !== col.id && (
                     <p className="text-xs text-gray-300 text-center py-6">Sem itens</p>

@@ -108,6 +108,13 @@ ALTER TABLE key_results   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checkins      ENABLE ROW LEVEL SECURITY;
 
 -- Todos os usuários autenticados têm acesso total
+DROP POLICY IF EXISTS "auth_all_sprints"     ON sprints;
+DROP POLICY IF EXISTS "auth_all_tasks"       ON tasks;
+DROP POLICY IF EXISTS "auth_all_backlog"     ON backlog_items;
+DROP POLICY IF EXISTS "auth_all_objectives"  ON objectives;
+DROP POLICY IF EXISTS "auth_all_key_results" ON key_results;
+DROP POLICY IF EXISTS "auth_all_checkins"    ON checkins;
+
 CREATE POLICY "auth_all_sprints"       ON sprints       FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "auth_all_tasks"         ON tasks         FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "auth_all_backlog"       ON backlog_items FOR ALL TO authenticated USING (true) WITH CHECK (true);

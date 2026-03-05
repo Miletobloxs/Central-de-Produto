@@ -1,354 +1,728 @@
 "use client";
 
-import { useState } from "react";
-import { TrendingUp, TrendingDown, ArrowDown, Download, ChevronRight } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  TrendingUp,
+  TrendingDown,
+  Loader2,
+  Zap,
+  Target,
+  CheckCircle2,
+  LayoutList,
+  Download,
+  AlertTriangle,
+} from "lucide-react";
+import type { Sprint, Task, BacklogItem, Objective, KeyResult } from "@/types/product";
 
-type Period = "7d" | "30d" | "90d" | "12m";
-type FunnelId = "onboarding" | "investment" | "reactivation";
+// ─── Types ────────────────────────────────────────────────────
+interface Epic {
+  id: string;
+  name: string;
+  status: string;
+  priority: string;
+  color?: string;
+  stream?: string;
+}
 
-const periods: { id: Period; label: string }[] = [
-  { id: "7d", label: "7 dias" },
-  { id: "30d", label: "30 dias" },
-  { id: "90d", label: "90 dias" },
-  { id: "12m", label: "12 meses" },
-];
+interface SprintMetric {
+  id: string;
+  name: string;
+  status: string;
+  todo: number;
+  in_progress: number;
+  review: number;
+  done: number;
+  total: number;
+  sp_done: number;
+  sp_total: number;
+}
 
-const funnels: { id: FunnelId; name: string; steps: { name: string; users: number }[] }[] = [
-  {
-    id: "onboarding",
-    name: "Onboarding",
-    steps: [
-      { name: "Cadastro Iniciado", users: 12450 },
-      { name: "Email Verificado", users: 10820 },
-      { name: "KYC Enviado", users: 7340 },
-      { name: "KYC Aprovado", users: 6210 },
-      { name: "Primeiro Aporte", users: 3890 },
-    ],
-  },
-  {
-    id: "investment",
-    name: "Fluxo de Investimento",
-    steps: [
-      { name: "Visitou Produto", users: 8920 },
-      { name: "Simulou Aporte", users: 5640 },
-      { name: "Iniciou Aporte", users: 2890 },
-      { name: "Aporte Concluído", users: 2450 },
-    ],
-  },
-  {
-    id: "reactivation",
-    name: "Reativação",
-    steps: [
-      { name: "E-mail Enviado", users: 5200 },
-      { name: "E-mail Aberto", users: 2860 },
-      { name: "Clicou no CTA", users: 890 },
-      { name: "Login Realizado", users: 640 },
-      { name: "Novo Aporte", users: 420 },
-    ],
-  },
-];
+interface EpicProgress {
+  id: string;
+  name: string;
+  color?: string;
+  todo: number;
+  in_progress: number;
+  review: number;
+  done: number;
+  total: number;
+}
 
-const cohorts: { month: string; users: number; retention: number[] }[] = [
-  { month: "Ago/23", users: 1240, retention: [100, 68, 52, 47, 43, 41, 39, 37, 36, 35, 34, 34, 33] },
-  { month: "Set/23", users: 1580, retention: [100, 71, 55, 49, 45, 42, 40, 38, 37, 36, 35, 34] },
-  { month: "Out/23", users: 1920, retention: [100, 74, 58, 52, 47, 44, 42, 40, 38] },
-  { month: "Nov/23", users: 2140, retention: [100, 76, 60, 54, 49, 46, 43] },
-  { month: "Dez/23", users: 1860, retention: [100, 73, 57, 50, 46] },
-  { month: "Jan/24", users: 2380, retention: [100, 78, 62, 55] },
-  { month: "Fev/24", users: 2610, retention: [100, 79, 63] },
-  { month: "Mar/24", users: 2890, retention: [100, 81] },
-  { month: "Abr/24", users: 3120, retention: [100] },
-];
+interface OKRObjective extends Objective {
+  key_results: KeyResult[];
+  progress: number;
+}
 
-const features = [
-  { name: "Portfólio", adoption: 89, trend: +2.1, isNew: false },
-  { name: "Extrato Consolidado", adoption: 76, trend: +8.4, isNew: true },
-  { name: "Relatórios PDF", adoption: 54, trend: +12.3, isNew: true },
-  { name: "Filtros Avançados", adoption: 48, trend: +5.2, isNew: true },
-  { name: "Notificações Push", adoption: 41, trend: -1.8, isNew: false },
-  { name: "Autenticação 2FA", adoption: 38, trend: +15.6, isNew: false },
-  { name: "Comparador", adoption: 22, trend: +3.1, isNew: false },
-  { name: "Simulador IR", adoption: 18, trend: +0.5, isNew: false },
-];
-
-const journeys = [
-  { path: "Dashboard → Portfólio → Produto → Aporte", sessions: 4820, cvr: 34.2 },
-  { path: "Dashboard → Extrato → Filtros → Relatório", sessions: 3210, cvr: 28.7 },
-  { path: "Notificação → Produto → Simulação → Aporte", sessions: 2890, cvr: 41.5 },
-  { path: "Dashboard → Comparador → Produto → Aporte", sessions: 1640, cvr: 38.9 },
-  { path: "Login → KYC → Produto → Primeiro Aporte", sessions: 1240, cvr: 52.1 },
-];
-
-const getRetentionStyle = (pct: number) => {
-  if (pct >= 80) return "bg-blue-600 text-white";
-  if (pct >= 60) return "bg-blue-400 text-white";
-  if (pct >= 40) return "bg-blue-200 text-blue-800";
-  if (pct >= 20) return "bg-blue-100 text-blue-700";
-  return "bg-blue-50 text-blue-400";
+// ─── Helpers ─────────────────────────────────────────────────
+const MOSCOW_META = {
+  must:   { label: "Must Have",   color: "bg-red-500",    light: "bg-red-50 text-red-700" },
+  should: { label: "Should Have", color: "bg-orange-400", light: "bg-orange-50 text-orange-700" },
+  could:  { label: "Could Have",  color: "bg-yellow-400", light: "bg-yellow-50 text-yellow-700" },
+  wont:   { label: "Won't Have",  color: "bg-gray-300",   light: "bg-gray-100 text-gray-500" },
 };
 
-export default function AnalyticsPage() {
-  const [period, setPeriod] = useState<Period>("30d");
-  const [selectedFunnel, setSelectedFunnel] = useState<FunnelId>("onboarding");
+const STATUS_COLORS = {
+  todo:        { bar: "bg-gray-200",    label: "To Do",       text: "text-gray-500" },
+  in_progress: { bar: "bg-blue-400",    label: "Em Progresso", text: "text-blue-600" },
+  review:      { bar: "bg-amber-400",   label: "Review",       text: "text-amber-600" },
+  done:        { bar: "bg-emerald-500", label: "Concluído",    text: "text-emerald-600" },
+};
 
-  const funnel = funnels.find((f) => f.id === selectedFunnel)!;
-  const maxUsers = funnel.steps[0].users;
+const PRIORITY_META = {
+  critical: { label: "Crítico", color: "bg-red-500",    text: "text-red-600" },
+  high:     { label: "Alto",    color: "bg-orange-400", text: "text-orange-600" },
+  medium:   { label: "Médio",   color: "bg-yellow-400", text: "text-yellow-600" },
+  low:      { label: "Baixo",   color: "bg-gray-300",   text: "text-gray-500" },
+};
+
+const OKR_STATUS_META = {
+  on_track:  { label: "No Prazo",   color: "bg-emerald-500" },
+  at_risk:   { label: "Em Risco",   color: "bg-amber-400" },
+  off_track:  { label: "Atrasado",  color: "bg-red-500" },
+  completed: { label: "Concluído",  color: "bg-blue-500" },
+};
+
+function emptyState(message: string) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 gap-2 text-gray-400">
+      <AlertTriangle size={20} className="opacity-40" />
+      <span className="text-xs">{message}</span>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────
+export default function AnalyticsPage() {
+  const [loading, setLoading] = useState(true);
+  const [sprints, setSprints]         = useState<Sprint[]>([]);
+  const [tasks, setTasks]             = useState<Task[]>([]);
+  const [backlogItems, setBacklogItems] = useState<BacklogItem[]>([]);
+  const [objectives, setObjectives]   = useState<OKRObjective[]>([]);
+  const [epics, setEpics]             = useState<Epic[]>([]);
+
+  useEffect(() => {
+    async function fetchAll() {
+      const supabase = createClient();
+      const [sprintsRes, tasksRes, backlogRes, objectivesRes, krsRes, epicsRes] = await Promise.all([
+        supabase.from("sprints").select("*").order("created_at"),
+        supabase.from("tasks").select("*").is("parent_task_id", null),
+        supabase.from("backlog_items").select("*"),
+        supabase.from("objectives").select("*").order("created_at"),
+        supabase.from("key_results").select("*"),
+        supabase.from("epics").select("id, name, status, priority, color, stream").order("created_at"),
+      ]);
+
+      const krs: KeyResult[] = krsRes.data ?? [];
+      const objs: OKRObjective[] = (objectivesRes.data ?? []).map((obj) => {
+        const objKRs = krs.filter((kr) => kr.objective_id === obj.id);
+        const progress =
+          objKRs.length > 0
+            ? Math.round(
+                objKRs.reduce((sum, kr) => sum + Math.min(100, (kr.current_value / Math.max(kr.target_value, 1)) * 100), 0) /
+                  objKRs.length
+              )
+            : 0;
+        return { ...obj, key_results: objKRs, progress };
+      });
+
+      setSprints(sprintsRes.data ?? []);
+      setTasks(tasksRes.data ?? []);
+      setBacklogItems(backlogRes.data ?? []);
+      setObjectives(objs);
+      setEpics(epicsRes.data ?? []);
+      setLoading(false);
+    }
+    fetchAll();
+  }, []);
+
+  // ─── Derived Metrics ─────────────────────────────────────
+  const activeSprint = sprints.find((s) => s.status === "active");
+
+  const sprintMetrics: SprintMetric[] = useMemo(
+    () =>
+      sprints.map((s) => {
+        const st = tasks.filter((t) => t.sprint_id === s.id);
+        return {
+          id: s.id,
+          name: s.name,
+          status: s.status,
+          todo:        st.filter((t) => t.status === "todo").length,
+          in_progress: st.filter((t) => t.status === "in_progress").length,
+          review:      st.filter((t) => t.status === "review").length,
+          done:        st.filter((t) => t.status === "done").length,
+          total:       st.length,
+          sp_done:  st.filter((t) => t.status === "done").reduce((a, t) => a + (t.story_points ?? 0), 0),
+          sp_total: st.reduce((a, t) => a + (t.story_points ?? 0), 0),
+        };
+      }),
+    [sprints, tasks]
+  );
+
+  const activeSprintMetric = activeSprint ? sprintMetrics.find((s) => s.id === activeSprint.id) : null;
+
+  const avgVelocity = useMemo(() => {
+    const completed = sprintMetrics.filter((s) => s.status === "completed" && s.sp_done > 0);
+    return completed.length > 0
+      ? Math.round(completed.reduce((a, s) => a + s.sp_done, 0) / completed.length)
+      : null;
+  }, [sprintMetrics]);
+
+  const allKRs = objectives.flatMap((o) => o.key_results);
+  const avgOKR = allKRs.length > 0
+    ? Math.round(allKRs.reduce((a, kr) => a + Math.min(100, (kr.current_value / Math.max(kr.target_value, 1)) * 100), 0) / allKRs.length)
+    : null;
+
+  const backlogInSprint = backlogItems.filter((b) => b.sprint_id != null).length;
+
+  const epicProgress: EpicProgress[] = useMemo(
+    () =>
+      epics.map((e) => {
+        const et = tasks.filter(
+          (t) =>
+            t.epic === e.id ||
+            t.epic?.toLowerCase() === e.name?.toLowerCase()
+        );
+        return {
+          id: e.id,
+          name: e.name,
+          color: e.color,
+          todo:        et.filter((t) => t.status === "todo").length,
+          in_progress: et.filter((t) => t.status === "in_progress").length,
+          review:      et.filter((t) => t.status === "review").length,
+          done:        et.filter((t) => t.status === "done").length,
+          total:       et.length,
+        };
+      }),
+    [epics, tasks]
+  );
+
+  const priorityCounts = useMemo(
+    () => ({
+      critical: tasks.filter((t) => t.priority === "critical").length,
+      high:     tasks.filter((t) => t.priority === "high").length,
+      medium:   tasks.filter((t) => t.priority === "medium").length,
+      low:      tasks.filter((t) => t.priority === "low").length,
+    }),
+    [tasks]
+  );
+  const maxPriority = Math.max(...Object.values(priorityCounts), 1);
+
+  const moscowCounts = useMemo(
+    () => ({
+      must:   backlogItems.filter((b) => b.moscow_priority === "must").length,
+      should: backlogItems.filter((b) => b.moscow_priority === "should").length,
+      could:  backlogItems.filter((b) => b.moscow_priority === "could").length,
+      wont:   backlogItems.filter((b) => b.moscow_priority === "wont").length,
+    }),
+    [backlogItems]
+  );
+  const totalBacklog = backlogItems.length;
+
+  // ─── Render ───────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 size={20} className="animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-5">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Analytics de Produto</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Funis de conversão, retenção por cohort e adoção de features</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Velocidade, OKRs, épicos e backlog — dados em tempo real
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1">
-            {periods.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPeriod(p.id)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
-                  period === p.id ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors">
-            <Download size={14} />
-            Exportar
-          </button>
-        </div>
+        <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors">
+          <Download size={14} />
+          Exportar
+        </button>
       </div>
 
-      {/* Summary KPIs */}
+      {/* ── KPI Cards ── */}
       <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: "Conversão Onboarding", value: "31.2%", delta: "+2.1%", up: true },
-          { label: "Retenção W4", value: "47.0%", delta: "+3.4%", up: true },
-          { label: "Adoção Média", value: "48.3%", delta: "+8.7%", up: true },
-          { label: "Sessões/Usuário", value: "6.2", delta: "-0.3", up: false },
-        ].map((kpi) => (
-          <div key={kpi.label} className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
-            <p className="text-xs text-gray-500 mb-1">{kpi.label}</p>
-            <p className="text-2xl font-bold text-gray-900">{kpi.value}</p>
-            <div className={`flex items-center gap-1 mt-1 ${kpi.up ? "text-emerald-600" : "text-red-500"}`}>
-              {kpi.up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              <span className="text-xs font-semibold">{kpi.delta} vs. período anterior</span>
-            </div>
+        {/* Sprint ativo */}
+        <div className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-gray-500">Sprint Ativo</p>
+            <Zap size={14} className="text-blue-400" />
           </div>
-        ))}
+          {activeSprintMetric ? (
+            <>
+              <p className="text-2xl font-bold text-gray-900">
+                {activeSprintMetric.done}
+                <span className="text-base font-medium text-gray-400">/{activeSprintMetric.total}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-1">tasks concluídas</p>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 mt-2">Sem sprint ativo</p>
+          )}
+        </div>
+
+        {/* Velocidade média */}
+        <div className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-gray-500">Velocidade Média</p>
+            <TrendingUp size={14} className="text-emerald-400" />
+          </div>
+          {avgVelocity !== null ? (
+            <>
+              <p className="text-2xl font-bold text-gray-900">
+                {avgVelocity}
+                <span className="text-sm font-medium text-gray-400 ml-1">SP/sprint</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-1">sprints concluídos</p>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 mt-2">Aguardando dados</p>
+          )}
+        </div>
+
+        {/* OKR Progress */}
+        <div className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-gray-500">Progresso OKR</p>
+            <Target size={14} className="text-purple-400" />
+          </div>
+          {avgOKR !== null ? (
+            <>
+              <p className="text-2xl font-bold text-gray-900">{avgOKR}%</p>
+              <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    avgOKR >= 70 ? "bg-emerald-500" : avgOKR >= 40 ? "bg-amber-400" : "bg-red-400"
+                  }`}
+                  style={{ width: `${avgOKR}%` }}
+                />
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 mt-2">Sem OKRs cadastrados</p>
+          )}
+        </div>
+
+        {/* Backlog coverage */}
+        <div className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-gray-500">Backlog em Sprint</p>
+            <LayoutList size={14} className="text-amber-400" />
+          </div>
+          <p className="text-2xl font-bold text-gray-900">
+            {backlogInSprint}
+            <span className="text-base font-medium text-gray-400">/{totalBacklog}</span>
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {totalBacklog > 0
+              ? `${Math.round((backlogInSprint / totalBacklog) * 100)}% alocado`
+              : "itens no backlog"}
+          </p>
+        </div>
       </div>
 
-      {/* Funnel + Feature Adoption */}
+      {/* ── Sprint Throughput + Priority ── */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Funnel — 2 cols */}
+
+        {/* Sprint Throughput — 2 cols */}
         <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-sm font-bold text-gray-900">Funis de Conversão</p>
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-              {funnels.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setSelectedFunnel(f.id)}
-                  className={`text-xs font-semibold px-3 py-1 rounded-md transition-all ${
-                    selectedFunnel === f.id ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {f.name}
-                </button>
+            <div>
+              <p className="text-sm font-bold text-gray-900">Throughput por Sprint</p>
+              <p className="text-xs text-gray-400 mt-0.5">Distribuição de tasks por status em cada sprint</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {(Object.entries(STATUS_COLORS) as [string, typeof STATUS_COLORS[keyof typeof STATUS_COLORS]][]).map(([, v]) => (
+                <div key={v.label} className="flex items-center gap-1">
+                  <div className={`w-2.5 h-2.5 rounded-sm ${v.bar}`} />
+                  <span className="text-[10px] text-gray-400">{v.label}</span>
+                </div>
               ))}
             </div>
           </div>
-          <div className="p-6 space-y-1">
-            {funnel.steps.map((step, i) => {
-              const pct = (step.users / maxUsers) * 100;
-              const dropPct =
-                i > 0
-                  ? ((funnel.steps[i - 1].users - step.users) / funnel.steps[i - 1].users) * 100
-                  : null;
-              return (
-                <div key={i}>
-                  {dropPct !== null && (
-                    <div className="flex items-center gap-2 my-1.5 ml-36">
-                      <ArrowDown size={11} className="text-red-400" />
-                      <span className="text-[11px] text-red-400 font-semibold">
-                        -{dropPct.toFixed(1)}% drop-off
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3">
-                    <div className="w-32 shrink-0 text-right">
-                      <span className="text-xs text-gray-500">{step.name}</span>
-                    </div>
-                    <div className="flex-1 h-10 bg-gray-50 rounded-xl overflow-hidden relative">
-                      <div
-                        className="h-full bg-blue-500 rounded-xl transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                      <div className="absolute inset-0 flex items-center px-3">
-                        <span className="text-xs font-bold text-white drop-shadow-sm">
-                          {step.users.toLocaleString("pt-BR")}
-                        </span>
+          <div className="p-6">
+            {sprintMetrics.length === 0 ? (
+              emptyState("Nenhum sprint encontrado")
+            ) : (
+              <div className="space-y-4">
+                {sprintMetrics.map((s) => {
+                  const max = Math.max(s.total, 1);
+                  return (
+                    <div key={s.id}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-gray-700 truncate max-w-[180px]">{s.name}</span>
+                          {s.status === "active" && (
+                            <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
+                              ATIVO
+                            </span>
+                          )}
+                          {s.status === "completed" && (
+                            <CheckCircle2 size={11} className="text-emerald-500" />
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400">{s.total} task{s.total !== 1 ? "s" : ""}</span>
                       </div>
+                      {s.total === 0 ? (
+                        <div className="h-7 bg-gray-50 rounded-lg flex items-center px-3">
+                          <span className="text-[10px] text-gray-300">Sem tasks</span>
+                        </div>
+                      ) : (
+                        <div className="flex h-7 rounded-lg overflow-hidden gap-px">
+                          {(["todo", "in_progress", "review", "done"] as const).map((st) => {
+                            const count = s[st];
+                            const pct = (count / max) * 100;
+                            if (pct === 0) return null;
+                            return (
+                              <div
+                                key={st}
+                                className={`${STATUS_COLORS[st].bar} flex items-center justify-center transition-all`}
+                                style={{ width: `${pct}%` }}
+                                title={`${STATUS_COLORS[st].label}: ${count}`}
+                              >
+                                {pct > 12 && (
+                                  <span className="text-[10px] font-bold text-white drop-shadow-sm">{count}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <div className="w-12 shrink-0 text-right">
-                      <span className="text-xs font-bold text-gray-600">{pct.toFixed(1)}%</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-xs text-gray-500">Taxa de conversão total</span>
-              <span className="text-sm font-bold text-blue-600">
-                {((funnel.steps[funnel.steps.length - 1].users / maxUsers) * 100).toFixed(1)}%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Feature Adoption — 1 col */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <p className="text-sm font-bold text-gray-900">Adoção de Features</p>
-            <p className="text-xs text-gray-400 mt-0.5">% de usuários ativos que usaram</p>
-          </div>
-          <div className="p-5 space-y-3.5">
-            {features.map((f) => (
-              <div key={f.name}>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-gray-700">{f.name}</span>
-                    {f.isNew && (
-                      <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                        NOVO
-                      </span>
-                    )}
-                  </div>
-                  <div className={`flex items-center gap-0.5 ${f.trend > 0 ? "text-emerald-600" : "text-red-500"}`}>
-                    {f.trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                    <span className="text-[10px] font-bold">
-                      {f.trend > 0 ? "+" : ""}
-                      {f.trend}%
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${f.isNew ? "bg-blue-500" : "bg-gray-400"}`}
-                      style={{ width: `${f.adoption}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-bold text-gray-600 w-8 text-right">{f.adoption}%</span>
-                </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+            )}
 
-      {/* Cohort Analysis */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-bold text-gray-900">Cohort Analysis — Retenção</p>
-            <p className="text-xs text-gray-400 mt-0.5">% de usuários ativos por semana após cadastro</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {[
-              { label: "≥80%", color: "bg-blue-600" },
-              { label: "≥60%", color: "bg-blue-400" },
-              { label: "≥40%", color: "bg-blue-200" },
-              { label: "<40%", color: "bg-blue-50 border border-blue-200" },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-1">
-                <div className={`w-3 h-3 rounded-sm ${item.color}`} />
-                <span className="text-[10px] text-gray-400">{item.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left font-semibold text-gray-500 px-6 py-3 w-24">Cohort</th>
-                <th className="font-semibold text-gray-500 px-2 py-3 w-16 text-center">Users</th>
-                {Array.from({ length: 13 }, (_, i) => (
-                  <th key={i} className="font-semibold text-gray-500 px-1 py-3 w-12 text-center">
-                    {i === 0 ? "W0" : `W${i}`}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cohorts.map((cohort) => (
-                <tr key={cohort.month} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-6 py-2 font-semibold text-gray-700 whitespace-nowrap">{cohort.month}</td>
-                  <td className="px-2 py-2 text-center text-gray-500">
-                    {cohort.users.toLocaleString("pt-BR")}
-                  </td>
-                  {Array.from({ length: 13 }, (_, i) => {
-                    const val = i < cohort.retention.length ? cohort.retention[i] : null;
+            {/* Story Points Summary */}
+            {sprintMetrics.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 mb-3">Story Points Entregues</p>
+                <div className="flex items-end gap-2 h-16">
+                  {sprintMetrics.map((s) => {
+                    const maxSP = Math.max(...sprintMetrics.map((x) => x.sp_total), 1);
+                    const donePct = s.sp_total > 0 ? (s.sp_done / s.sp_total) * 100 : 0;
+                    const barH = Math.max((s.sp_total / maxSP) * 100, 8);
                     return (
-                      <td key={i} className="px-1 py-1 text-center">
-                        {val !== null ? (
-                          <div className={`rounded-md py-1.5 text-[11px] font-bold ${getRetentionStyle(val)}`}>
-                            {val}%
-                          </div>
-                        ) : (
-                          <div className="rounded-md py-1.5 bg-gray-50" />
-                        )}
-                      </td>
+                      <div key={s.id} className="flex-1 flex flex-col items-center gap-1 group" title={`${s.name}: ${s.sp_done}/${s.sp_total} SP`}>
+                        <span className="text-[9px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {s.sp_done}/{s.sp_total}
+                        </span>
+                        <div
+                          className="w-full rounded-t-md relative overflow-hidden bg-gray-100"
+                          style={{ height: `${barH}%` }}
+                        >
+                          <div
+                            className="absolute bottom-0 left-0 right-0 bg-emerald-400 transition-all"
+                            style={{ height: `${donePct}%` }}
+                          />
+                        </div>
+                      </div>
                     );
                   })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Top Journeys */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <p className="text-sm font-bold text-gray-900">Top Jornadas de Usuário</p>
-          <p className="text-xs text-gray-400 mt-0.5">Caminhos mais frequentes com maior taxa de conversão</p>
-        </div>
-        <div className="divide-y divide-gray-50">
-          {journeys.map((j, i) => (
-            <div key={i} className="flex items-center gap-6 px-6 py-4 hover:bg-gray-50/50 transition-colors">
-              <span className="text-sm font-black text-gray-200 w-4 shrink-0">{i + 1}</span>
-              <div className="flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {j.path.split(" → ").map((step, si, arr) => (
-                    <span key={si} className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">
-                        {step}
-                      </span>
-                      {si < arr.length - 1 && <ChevronRight size={10} className="text-gray-400" />}
-                    </span>
+                </div>
+                <div className="flex gap-2 mt-1.5">
+                  {sprintMetrics.map((s) => (
+                    <div key={s.id} className="flex-1 text-center">
+                      <span className="text-[9px] text-gray-300 truncate block">{s.name.split(" ")[0]}</span>
+                    </div>
                   ))}
                 </div>
               </div>
-              <div className="flex items-center gap-6 shrink-0">
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Sessões</p>
-                  <p className="text-sm font-bold text-gray-800">{j.sessions.toLocaleString("pt-BR")}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Conversão</p>
-                  <p className="text-sm font-bold text-emerald-600">{j.cvr}%</p>
+            )}
+          </div>
+        </div>
+
+        {/* Priority Distribution — 1 col */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <p className="text-sm font-bold text-gray-900">Prioridade das Tasks</p>
+            <p className="text-xs text-gray-400 mt-0.5">{tasks.length} task{tasks.length !== 1 ? "s" : ""} no total</p>
+          </div>
+          <div className="p-5">
+            {tasks.length === 0 ? (
+              emptyState("Nenhuma task encontrada")
+            ) : (
+              <div className="space-y-4">
+                {(Object.entries(priorityCounts) as [keyof typeof PRIORITY_META, number][]).map(([key, count]) => {
+                  const meta = PRIORITY_META[key];
+                  const pct = Math.round((count / tasks.length) * 100);
+                  return (
+                    <div key={key}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-gray-700">{meta.label}</span>
+                        <span className={`text-xs font-bold ${meta.text}`}>{count}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${meta.color}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-gray-400 w-7 text-right">{pct}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Breakdown visual */}
+            {tasks.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-gray-100">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-2">Distribuição</p>
+                <div className="flex h-3 rounded-full overflow-hidden gap-px">
+                  {(Object.entries(priorityCounts) as [keyof typeof PRIORITY_META, number][]).map(([key, count]) => {
+                    const pct = (count / tasks.length) * 100;
+                    if (pct === 0) return null;
+                    return (
+                      <div
+                        key={key}
+                        className={`${PRIORITY_META[key].color} transition-all`}
+                        style={{ width: `${pct}%` }}
+                        title={`${PRIORITY_META[key].label}: ${count}`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          ))}
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ── Epic Progress ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-gray-900">Progresso por Épico</p>
+            <p className="text-xs text-gray-400 mt-0.5">Tasks distribuídas por épico e status</p>
+          </div>
+          <span className="text-xs text-gray-400">{epics.length} épico{epics.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="p-6">
+          {epicProgress.length === 0 ? (
+            emptyState("Nenhum épico cadastrado")
+          ) : (
+            <div className="space-y-5">
+              {epicProgress.map((e) => {
+                const max = Math.max(e.total, 1);
+                const donePct = Math.round((e.done / max) * 100);
+                return (
+                  <div key={e.id}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {e.color && (
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color }} />
+                        )}
+                        <span className="text-xs font-semibold text-gray-800">{e.name}</span>
+                        <span className="text-[10px] text-gray-400">{e.total} task{e.total !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px]">
+                        {e.done > 0    && <span className="text-emerald-600 font-semibold">{e.done} ✓</span>}
+                        {e.review > 0  && <span className="text-amber-500 font-semibold">{e.review} review</span>}
+                        {e.in_progress > 0 && <span className="text-blue-500 font-semibold">{e.in_progress} prog.</span>}
+                        {e.todo > 0    && <span className="text-gray-400">{e.todo} pendente</span>}
+                        <span className="font-bold text-gray-700">{donePct}%</span>
+                      </div>
+                    </div>
+                    {e.total === 0 ? (
+                      <div className="h-3 bg-gray-50 rounded-full flex items-center px-3">
+                        <span className="text-[9px] text-gray-200">Sem tasks vinculadas</span>
+                      </div>
+                    ) : (
+                      <div className="flex h-3 rounded-full overflow-hidden gap-px bg-gray-100">
+                        {(["done", "review", "in_progress", "todo"] as const).map((st) => {
+                          const count = e[st];
+                          const pct = (count / max) * 100;
+                          if (pct === 0) return null;
+                          return (
+                            <div
+                              key={st}
+                              className={`${STATUS_COLORS[st].bar} transition-all`}
+                              style={{ width: `${pct}%` }}
+                              title={`${STATUS_COLORS[st].label}: ${count}`}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── OKR Progress + Backlog MoSCoW ── */}
+      <div className="grid grid-cols-2 gap-4">
+
+        {/* OKR Progress */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-gray-900">Progresso OKR</p>
+              <p className="text-xs text-gray-400 mt-0.5">Avanço médio dos Key Results por objetivo</p>
+            </div>
+            {avgOKR !== null && (
+              <span className={`text-sm font-bold ${avgOKR >= 70 ? "text-emerald-600" : avgOKR >= 40 ? "text-amber-500" : "text-red-500"}`}>
+                {avgOKR}% geral
+              </span>
+            )}
+          </div>
+          <div className="p-6">
+            {objectives.length === 0 ? (
+              emptyState("Nenhum objetivo cadastrado")
+            ) : (
+              <div className="space-y-5">
+                {objectives.map((obj) => {
+                  const statusMeta = OKR_STATUS_META[obj.status] ?? OKR_STATUS_META.on_track;
+                  return (
+                    <div key={obj.id}>
+                      <div className="flex items-start justify-between mb-2 gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 truncate">{obj.title}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-gray-400">{obj.quarter}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white ${statusMeta.color}`}>
+                              {statusMeta.label}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-sm font-bold text-gray-700 shrink-0">{obj.progress}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${statusMeta.color}`}
+                          style={{ width: `${obj.progress}%` }}
+                        />
+                      </div>
+                      {obj.key_results.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {obj.key_results.map((kr) => {
+                            const krPct = Math.min(100, Math.round((kr.current_value / Math.max(kr.target_value, 1)) * 100));
+                            return (
+                              <div key={kr.id} className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[10px] text-gray-500 truncate">{kr.title}</p>
+                                </div>
+                                <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden shrink-0">
+                                  <div
+                                    className="h-full bg-blue-400 rounded-full"
+                                    style={{ width: `${krPct}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-gray-400 w-8 text-right shrink-0">
+                                  {kr.current_value}/{kr.target_value} {kr.unit}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Backlog MoSCoW */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-gray-900">Backlog — Priorização MoSCoW</p>
+              <p className="text-xs text-gray-400 mt-0.5">Distribuição dos {totalBacklog} itens do backlog</p>
+            </div>
+          </div>
+          <div className="p-6">
+            {totalBacklog === 0 ? (
+              emptyState("Nenhum item no backlog")
+            ) : (
+              <>
+                {/* Stacked bar */}
+                <div className="flex h-4 rounded-xl overflow-hidden gap-px mb-5">
+                  {(Object.entries(moscowCounts) as [keyof typeof MOSCOW_META, number][]).map(([key, count]) => {
+                    const pct = (count / totalBacklog) * 100;
+                    if (pct === 0) return null;
+                    return (
+                      <div
+                        key={key}
+                        className={`${MOSCOW_META[key].color} transition-all`}
+                        style={{ width: `${pct}%` }}
+                        title={`${MOSCOW_META[key].label}: ${count}`}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Legend + details */}
+                <div className="space-y-3.5">
+                  {(Object.entries(moscowCounts) as [keyof typeof MOSCOW_META, number][]).map(([key, count]) => {
+                    const meta = MOSCOW_META[key];
+                    const pct = totalBacklog > 0 ? Math.round((count / totalBacklog) * 100) : 0;
+                    const inSprint = backlogItems.filter(
+                      (b) => b.moscow_priority === key && b.sprint_id != null
+                    ).length;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-sm ${meta.color}`} />
+                            <span className="text-xs font-semibold text-gray-700">{meta.label}</span>
+                            {inSprint > 0 && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${meta.light}`}>
+                                {inSprint} em sprint
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-gray-700">{count}</span>
+                            <span className="text-[10px] text-gray-400">({pct}%)</span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${meta.color}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Story Points summary */}
+                {backlogItems.some((b) => b.story_points > 0) && (
+                  <div className="mt-5 pt-4 border-t border-gray-100 grid grid-cols-2 gap-3">
+                    {(Object.keys(moscowCounts) as (keyof typeof MOSCOW_META)[]).map((key) => {
+                      const meta = MOSCOW_META[key];
+                      const sp = backlogItems
+                        .filter((b) => b.moscow_priority === key)
+                        .reduce((a, b) => a + (b.story_points ?? 0), 0);
+                      return (
+                        <div key={key} className={`rounded-xl px-3 py-2 ${meta.light}`}>
+                          <p className="text-[10px] font-semibold">{meta.label}</p>
+                          <p className="text-sm font-bold mt-0.5">{sp} <span className="text-xs font-normal opacity-70">SP</span></p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }

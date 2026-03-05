@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
-import type { Sprint, Task, TaskStatus } from "@/types/product";
+import type { Sprint, Task, TaskStatus, TaskPriority } from "@/types/product";
 import {
   Plus,
   Loader2,
@@ -31,6 +31,8 @@ import {
   CheckCircle2,
   Circle,
   ListTree,
+  FlagTriangleRight,
+  Pencil,
 } from "lucide-react";
 
 // ─── Constantes ──────────────────────────────────────────────
@@ -138,6 +140,7 @@ function TaskCard({
   subtasks,
   overlay = false,
   onDelete,
+  onEdit,
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
@@ -146,6 +149,7 @@ function TaskCard({
   subtasks: Task[];
   overlay?: boolean;
   onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
   onAddSubtask: (parentId: string, title: string) => void;
   onToggleSubtask: (id: string, done: boolean) => void;
   onDeleteSubtask: (id: string) => void;
@@ -239,6 +243,13 @@ function TaskCard({
                   <ListTree size={11} />
                 </button>
                 <button
+                  onClick={() => onEdit(task.id)}
+                  className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-500 transition-opacity"
+                  title="Editar task"
+                >
+                  <Pencil size={11} />
+                </button>
+                <button
                   onClick={() => onDelete(task.id)}
                   className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-opacity"
                 >
@@ -314,6 +325,7 @@ function KanbanColumn({
   subtasksMap,
   onAddTask,
   onDeleteTask,
+  onEditTask,
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
@@ -323,6 +335,7 @@ function KanbanColumn({
   subtasksMap: Record<string, Task[]>;
   onAddTask: (status: TaskStatus, title: string) => void;
   onDeleteTask: (id: string) => void;
+  onEditTask: (id: string) => void;
   onAddSubtask: (parentId: string, title: string) => void;
   onToggleSubtask: (id: string, done: boolean) => void;
   onDeleteSubtask: (id: string) => void;
@@ -364,6 +377,7 @@ function KanbanColumn({
               task={task}
               subtasks={subtasksMap[task.id] ?? []}
               onDelete={onDeleteTask}
+              onEdit={onEditTask}
               onAddSubtask={onAddSubtask}
               onToggleSubtask={onToggleSubtask}
               onDeleteSubtask={onDeleteSubtask}
@@ -399,6 +413,235 @@ function KanbanColumn({
         {tasks.length === 0 && !adding && (
           <p className="text-xs text-gray-300 text-center py-6">Sem tasks</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Finish Sprint Modal ──────────────────────────────────────
+function FinishSprintModal({
+  sprint,
+  tasks,
+  onClose,
+  onConfirm,
+}: {
+  sprint: Sprint;
+  tasks: Task[];
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const totalTasks  = tasks.length;
+  const doneTasks   = tasks.filter((t) => t.status === "done").length;
+  const openTasks   = totalTasks - doneTasks;
+  const totalPoints = tasks.reduce((s, t) => s + (t.story_points ?? 0), 0);
+  const donePoints  = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
+  const completion  = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0;
+
+  async function handleConfirm() {
+    setSaving(true);
+    await onConfirm();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
+            <FlagTriangleRight size={18} className="text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Finalizar Sprint</h2>
+            <p className="text-xs text-gray-500">{sprint.name}</p>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-5">
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-3 text-center">
+            <p className="text-xl font-bold text-emerald-600">{doneTasks}</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Concluídas</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-3 text-center">
+            <p className="text-xl font-bold text-amber-600">{openTasks}</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Em aberto</p>
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-3 text-center">
+            <p className="text-xl font-bold text-blue-600">{donePoints}pt</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Velocity</p>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-gray-500">Conclusão do sprint</span>
+            <span className="text-xs font-bold text-gray-700">{completion}%</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${completion}%`,
+                background: completion >= 75 ? "#22c55e" : completion >= 40 ? "#3b82f6" : "#f59e0b",
+              }}
+            />
+          </div>
+        </div>
+
+        {openTasks > 0 && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+            <span className="text-amber-500 mt-0.5 shrink-0">⚠</span>
+            <p className="text-xs text-amber-700">
+              <span className="font-semibold">{openTasks} task{openTasks > 1 ? "s" : ""} não concluída{openTasks > 1 ? "s" : ""}.</span>{" "}
+              Elas permanecerão no board e poderão ser movidas para o próximo sprint.
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={saving}
+            className="flex-1 bg-emerald-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            {saving ? "Finalizando..." : "Finalizar Sprint"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Task Modal ─────────────────────────────────────────
+const EPICS = ["Onboarding", "Investimentos", "Plataforma", "Analytics", "Infra", "Auth", "Notificações"];
+
+const PRIORITIES: { id: TaskPriority; label: string; activeClass: string; idleClass: string }[] = [
+  { id: "low",      label: "Low",      activeClass: "bg-gray-600 text-white",    idleClass: "bg-gray-100 text-gray-600 hover:bg-gray-200" },
+  { id: "medium",   label: "Medium",   activeClass: "bg-yellow-500 text-white",  idleClass: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200" },
+  { id: "high",     label: "High",     activeClass: "bg-orange-500 text-white",  idleClass: "bg-orange-100 text-orange-700 hover:bg-orange-200" },
+  { id: "critical", label: "Critical", activeClass: "bg-red-600 text-white",     idleClass: "bg-red-100 text-red-700 hover:bg-red-200" },
+];
+
+function EditTaskModal({
+  task,
+  onClose,
+  onSave,
+}: {
+  task: Task;
+  onClose: () => void;
+  onSave: (id: string, patch: Partial<Task>) => Promise<void>;
+}) {
+  const [title,    setTitle]    = useState(task.title);
+  const [priority, setPriority] = useState<TaskPriority>(task.priority);
+  const [points,   setPoints]   = useState(task.story_points);
+  const [assignee, setAssignee] = useState(task.assignee ?? "");
+  const [epic,     setEpic]     = useState(task.epic ?? "");
+  const [saving,   setSaving]   = useState(false);
+
+  async function handleSave() {
+    if (!title.trim()) return;
+    setSaving(true);
+    await onSave(task.id, {
+      title:        title.trim(),
+      priority,
+      story_points: points,
+      assignee:     assignee.trim() || undefined,
+      epic:         epic || undefined,
+    });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h2 className="text-base font-bold text-gray-900 mb-4">Editar Task</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Título *</label>
+            <input
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") onClose(); }}
+              className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Prioridade</label>
+            <div className="flex gap-2 mt-1">
+              {PRIORITIES.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPriority(p.id)}
+                  className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition-colors ${priority === p.id ? p.activeClass : p.idleClass}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Story Points</label>
+              <select
+                value={points}
+                onChange={(e) => setPoints(Number(e.target.value))}
+                className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+              >
+                {[1, 2, 3, 5, 8, 13].map((p) => <option key={p} value={p}>{p} pt</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Épico</label>
+              <select
+                value={epic}
+                onChange={(e) => setEpic(e.target.value)}
+                className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+              >
+                <option value="">Nenhum</option>
+                {EPICS.map((e) => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Responsável</label>
+            <input
+              value={assignee}
+              onChange={(e) => setAssignee(e.target.value)}
+              placeholder="Nome do responsável…"
+              className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button
+            disabled={!title.trim() || saving}
+            onClick={handleSave}
+            className="flex-1 bg-blue-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {saving && <Loader2 size={14} className="animate-spin" />}
+            {saving ? "Salvando..." : "Salvar"}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100"
+          >
+            Cancelar
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -481,17 +724,19 @@ export default function SprintsPage() {
   const [activeSprint, setActiveSprint] = useState<Sprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
-  const [showNewSprint, setShowNewSprint] = useState(false);
-  const [sprintDropdown, setSprintDropdown] = useState(false);
+  const [showNewSprint,    setShowNewSprint]    = useState(false);
+  const [showFinishSprint, setShowFinishSprint] = useState(false);
+  const [sprintDropdown,   setSprintDropdown]   = useState(false);
+  const [editTaskId,       setEditTaskId]       = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const { data: sprintData } = await supabase
-      .from("sprints").select("*").order("createdAt", { ascending: false });
+      .from("sprints").select("*").order("created_at", { ascending: false });
 
     if (sprintData && sprintData.length > 0) {
       setSprints(sprintData);
-      const current = sprintData.find((s: Sprint) => s.status === "ACTIVE") ?? sprintData[0];
+      const current = sprintData.find((s: Sprint) => s.status === "active") ?? sprintData[0];
       setActiveSprint(current);
       await loadTasksForSprint(current.id);
     } else {
@@ -518,9 +763,9 @@ export default function SprintsPage() {
   }
 
   async function createSprint(name: string, goal: string, startDate: string, endDate: string): Promise<string | null> {
-    const payload: Record<string, string> = { name, goal, status: "ACTIVE" };
-    if (startDate) payload.startDate = startDate;
-    if (endDate)   payload.endDate   = endDate;
+    const payload: Record<string, string> = { name, goal, status: "active" };
+    if (startDate) payload.start_date = startDate;
+    if (endDate)   payload.end_date   = endDate;
 
     const { data, error } = await supabase.from("sprints")
       .insert(payload).select().single();
@@ -542,6 +787,11 @@ export default function SprintsPage() {
     await supabase.from("tasks").delete().eq("id", id);
     setTasks((p) => p.filter((t) => t.id !== id));
     setSubtasks((p) => p.filter((s) => s.parent_task_id !== id));
+  }
+
+  async function updateTask(id: string, patch: Partial<Task>) {
+    await supabase.from("tasks").update(patch).eq("id", id);
+    setTasks((p) => p.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }
 
   async function addSubtask(parentId: string, title: string) {
@@ -568,6 +818,18 @@ export default function SprintsPage() {
   async function deleteSubtask(id: string) {
     await supabase.from("tasks").delete().eq("id", id);
     setSubtasks((p) => p.filter((s) => s.id !== id));
+  }
+
+  async function finishSprint() {
+    if (!activeSprint) return;
+    const donePoints = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
+    await supabase.from("sprints")
+      .update({ status: "completed", velocity: donePoints })
+      .eq("id", activeSprint.id);
+    const finished = { ...activeSprint, status: "completed" as const, velocity: donePoints };
+    setSprints((p) => p.map((s) => s.id === activeSprint.id ? finished : s));
+    setActiveSprint(finished);
+    setShowFinishSprint(false);
   }
 
   async function updateTaskStatus(taskId: string, newStatus: string) {
@@ -634,8 +896,8 @@ export default function SprintsPage() {
             {activeSprint?.name ?? "Nenhum sprint"}
             {activeSprint && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                activeSprint.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" :
-                activeSprint.status === "PLANNING" ? "bg-amber-100 text-amber-700" :
+                activeSprint.status === "active" ? "bg-emerald-100 text-emerald-700" :
+                activeSprint.status === "planning" ? "bg-amber-100 text-amber-700" :
                 "bg-gray-100 text-gray-500"}`}>
                 {activeSprint.status}
               </span>
@@ -671,13 +933,21 @@ export default function SprintsPage() {
           </span>
         )}
 
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2">
             <div className="w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${completion}%` }} />
             </div>
             <span className="text-xs font-semibold text-gray-500">{completion}%</span>
           </div>
+          {activeSprint?.status === "active" && (
+            <button
+              onClick={() => setShowFinishSprint(true)}
+              className="flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-emerald-700"
+            >
+              <FlagTriangleRight size={13} /> Finalizar Sprint
+            </button>
+          )}
           {sprints.length === 0 && (
             <button onClick={() => setShowNewSprint(true)}
               className="flex items-center gap-1.5 bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-blue-700">
@@ -701,6 +971,7 @@ export default function SprintsPage() {
                   subtasksMap={subtasksMap}
                   onAddTask={addTask}
                   onDeleteTask={deleteTask}
+                  onEditTask={setEditTaskId}
                   onAddSubtask={addSubtask}
                   onToggleSubtask={toggleSubtask}
                   onDeleteSubtask={deleteSubtask}
@@ -714,6 +985,7 @@ export default function SprintsPage() {
                   subtasks={subtasksMap[draggingTask.id] ?? []}
                   overlay
                   onDelete={() => {}}
+                  onEdit={() => {}}
                   onAddSubtask={() => {}}
                   onToggleSubtask={() => {}}
                   onDeleteSubtask={() => {}}
@@ -741,6 +1013,26 @@ export default function SprintsPage() {
       {showNewSprint && (
         <NewSprintModal onClose={() => setShowNewSprint(false)} onCreate={createSprint} />
       )}
+
+      {showFinishSprint && activeSprint && (
+        <FinishSprintModal
+          sprint={activeSprint}
+          tasks={tasks}
+          onClose={() => setShowFinishSprint(false)}
+          onConfirm={finishSprint}
+        />
+      )}
+
+      {editTaskId && (() => {
+        const task = tasks.find((t) => t.id === editTaskId);
+        return task ? (
+          <EditTaskModal
+            task={task}
+            onClose={() => setEditTaskId(null)}
+            onSave={updateTask}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

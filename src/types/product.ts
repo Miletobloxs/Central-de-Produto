@@ -1,20 +1,18 @@
-// SprintStatus em maiúsculas — schema real da tabela Prisma
-export type SprintStatus = "PLANNING" | "ACTIVE" | "COMPLETED";
+export type SprintStatus = "planning" | "active" | "completed";
 export type TaskStatus = "todo" | "in_progress" | "review" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 export type MoscowPriority = "must" | "should" | "could" | "wont";
 export type OKRStatus = "on_track" | "at_risk" | "off_track" | "completed";
 
-// Sprint usa camelCase — colunas reais da tabela Prisma no Supabase
 export interface Sprint {
   id: string;
   name: string;
   goal?: string;
   status: SprintStatus;
-  startDate?: string;
-  endDate?: string;
+  start_date?: string;
+  end_date?: string;
   velocity?: number;
-  createdAt: string;
+  created_at: string;
   tasks?: Task[];
   epic_id?: string | null;
 }

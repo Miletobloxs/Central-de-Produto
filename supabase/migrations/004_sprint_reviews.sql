@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS sprint_reviews (
 );
 
 ALTER TABLE sprint_reviews ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "auth_all_sprint_reviews" ON sprint_reviews;
 CREATE POLICY "auth_all_sprint_reviews" ON sprint_reviews FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 CREATE OR REPLACE TRIGGER sprint_reviews_updated_at
