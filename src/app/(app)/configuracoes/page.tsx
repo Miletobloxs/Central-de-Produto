@@ -821,8 +821,8 @@ export default function ConfiguracoesPage() {
         }}
         groups={groups}
         internalRoles={Object.fromEntries(
-          Object.entries(ROLE_LABELS).filter(([role]) => MANAGEABLE_ROLES.includes(role as UserRole))
-        ) as Record<string, string>}
+          Object.entries(ROLE_LABELS).filter(([role]) => MANAGEABLE_ROLES.includes(role as any))
+        )}
       />
     </div>
   );
