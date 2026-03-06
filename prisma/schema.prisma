@@ -98,6 +98,7 @@ enum RiskProfile {
 enum UserRole {
   SUPER_ADMIN
   ADMIN
+  BOARD
   DEVELOPER
   BLOXXS_TEAM
   ORIGINADOR

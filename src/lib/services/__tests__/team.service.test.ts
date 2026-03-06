@@ -8,6 +8,11 @@ vi.mock('@/lib/prisma', () => ({
     prisma: {
         teamGroup: {
             update: vi.fn(),
+            delete: vi.fn(),
+        },
+        user: {
+            update: vi.fn(),
+            delete: vi.fn(),
         },
     },
 }));
@@ -51,6 +56,49 @@ describe('TeamService - Group Management', () => {
             expect(prisma.teamGroup.update).toHaveBeenCalledWith({
                 where: { id: groupId },
                 data: updateData,
+            });
+        });
+    });
+
+    describe('deleteGroup', () => {
+        it('deve excluir um grupo pelo ID', async () => {
+            const groupId = 'group-123';
+            (prisma.teamGroup.delete as any).mockResolvedValue({ id: groupId });
+
+            await teamService.deleteGroup(groupId);
+
+            expect(prisma.teamGroup.delete).toHaveBeenCalledWith({
+                where: { id: groupId },
+            });
+        });
+    });
+
+    describe('User Management', () => {
+        it('deve atualizar o cargo e grupo de um usuário', async () => {
+            const userId = 'user-123';
+            const updateData = {
+                role: 'ADMIN' as any,
+                groupId: 'group-123',
+            };
+
+            (prisma.user.update as any).mockResolvedValue({ id: userId, ...updateData });
+
+            await (teamService as any).updateUser(userId, updateData);
+
+            expect(prisma.user.update).toHaveBeenCalledWith({
+                where: { id: userId },
+                data: updateData,
+            });
+        });
+
+        it('deve excluir um usuário pelo ID', async () => {
+            const userId = 'user-123';
+            (prisma.user.delete as any).mockResolvedValue({ id: userId });
+
+            await (teamService as any).deleteUser(userId);
+
+            expect(prisma.user.delete).toHaveBeenCalledWith({
+                where: { id: userId },
             });
         });
     });

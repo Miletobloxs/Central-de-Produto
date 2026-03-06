@@ -81,12 +81,6 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Equipe",
-    items: [
-      { href: "/equipe/grupos", label: "Grupos e Acesso", icon: Users, requiredPermission: "ORCHESTRATE_PRODUCT" },
-    ],
-  },
-  {
     label: "Sistema",
     items: [
       { href: "/configuracoes", label: "Configurações", icon: Settings, requiredPermission: "ORCHESTRATE_PRODUCT" },
@@ -149,8 +143,8 @@ export default function Sidebar() {
                       <Link
                         href={item.href}
                         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${active
-                            ? "bg-blue-600 text-white shadow-sm"
-                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                           }`}
                       >
                         <Icon size={15} strokeWidth={active ? 2.5 : 2} />
