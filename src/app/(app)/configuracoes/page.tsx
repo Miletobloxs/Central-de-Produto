@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Bell, Shield, Users, Plug, Globe, Save, Check, Plus, MoreVertical, Settings2, Loader2, CheckCircle2, Trash2, UserPlus, UserCog, Clock, Copy, Mail } from "lucide-react";
-import { getGroupsAction, createGroupAction, updateGroupAction, deleteGroupAction, getUsersAction, updateUserAction, deleteUserAction, getPendingInvitesAction } from "@/lib/actions/team.actions";
+import { getGroupsAction, createGroupAction, updateGroupAction, deleteGroupAction, getUsersAction, updateUserAction, deleteUserAction, getPendingInvitesAction, deleteInviteAction } from "@/lib/actions/team.actions";
 import { InviteModal } from "./InviteModal";
 import type { Permission } from "@/lib/services/access.service";
 import { UserRole } from "@prisma/client";
@@ -176,6 +176,19 @@ export default function ConfiguracoesPage() {
       fetchData();
     } catch (error) {
       console.error("Failed to delete user:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteInvite = async (id: string) => {
+    if (!confirm("Tem certeza que deseja cancelar este convite? O link enviado deixará de funcionar.")) return;
+    setIsSubmitting(true);
+    try {
+      await deleteInviteAction(id);
+      fetchData();
+    } catch (error) {
+      console.error("Failed to delete invite:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -519,8 +532,16 @@ export default function ConfiguracoesPage() {
                                     alert("Link copiado!");
                                   }}
                                   className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+                                  title="Copiar Link"
                                 >
                                   <Copy size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteInvite(invite.id)}
+                                  className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
+                                  title="Excluir Convite"
+                                >
+                                  <Trash2 size={16} />
                                 </button>
                               </div>
                             </div>
