@@ -1,0 +1,2 @@
+import{f as t,k as i,fp as a}from"./ask-input-yG-IuTmc.js";var r;(function(s){s.MY_FILES="my-files",s.SOURCES="sources",s.MY_CONNECTORS="my-connectors",s.SPACES="spaces"})(r||(r={}));function f({feature:s,connectionType:n}){const{isEnterprise:o}=t({reason:"useHasConnectorsAccess"}),{hasAccessToProFeatures:c}=i(),{variation:e}=a(!1,{connectionType:n??""});return o?!0:c?s===r.MY_FILES||s===r.SOURCES?e:!0:!1}export{r as C,f as u};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_spa/assets/useHasConnectorsAccess-DzZkFy2u.js.map

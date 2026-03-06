@@ -1,0 +1,2 @@
+import{j as s}from"./vendors-Cf2H4Q9h.js";import{u as r}from"./i18n-DNY0yzXR.js";import{C as n}from"./CanonicalContainer-B5NEoxrf.js";const p=t=>{const{$t:o}=r();return s.jsx(n,{title:o({defaultMessage:"Perplexity Sports",id:"4WNzNs+Wao"}),titleLink:"/sports/",...t})};export{p as S};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_spa/assets/SportsCanonicalContainer-BFbMBIeW.js.map

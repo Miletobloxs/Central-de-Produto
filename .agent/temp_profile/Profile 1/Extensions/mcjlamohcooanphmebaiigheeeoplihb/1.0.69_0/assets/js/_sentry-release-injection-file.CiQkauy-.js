@@ -1,0 +1,2 @@
+try{let e=typeof window<"u"?window:typeof global<"u"?global:typeof globalThis<"u"?globalThis:typeof self<"u"?self:{},n=new e.Error().stack;n&&(e._sentryDebugIds=e._sentryDebugIds||{},e._sentryDebugIds[n]="54171063-b522-4650-89cd-0627b315a5e4",e._sentryDebugIdIdentifier="sentry-dbid-54171063-b522-4650-89cd-0627b315a5e4")}catch{}{let e=typeof window<"u"?window:typeof global<"u"?global:typeof globalThis<"u"?globalThis:typeof self<"u"?self:{};e.SENTRY_RELEASE={id:"unknown"}}
+//# sourceMappingURL=_sentry-release-injection-file.CiQkauy-.js.map

@@ -1,0 +1,17 @@
+2026/03/03-12:41:51.713 b7ef90 Creating DB /Users/carloscarneiro/.gemini/antigravity/scratch/projects/automacao-correcoes/.agent/temp_chrome_profile/Default/IndexedDB/https_www.loom.com_0.indexeddb.leveldb since it was missing.
+2026/03/03-12:41:51.715 b7ef90 Reusing MANIFEST /Users/carloscarneiro/.gemini/antigravity/scratch/projects/automacao-correcoes/.agent/temp_chrome_profile/Default/IndexedDB/https_www.loom.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/03/03-14:29:48.696 b7ef93 Level-0 table #5: started
+2026/03/03-14:29:48.719 b7ef93 Level-0 table #5: 1647863 bytes OK
+2026/03/03-14:29:48.736 b7ef93 Delete type=0 #3
+2026/03/03-15:56:06.286 b7ef93 Level-0 table #7: started
+2026/03/03-15:56:06.296 b7ef93 Level-0 table #7: 725024 bytes OK
+2026/03/03-15:56:06.298 b7ef93 Delete type=0 #4
+2026/03/03-15:56:06.301 b7ef93 Manual compaction at level-0 from (begin) .. (end); will stop at (end)
+2026/03/03-15:56:06.301 b7ef93 Manual compaction at level-1 from (begin) .. (end); will stop at '\x00\x01\x01"\x04\x02\x01\x0a\x00p\x00o\x00s\x00t\x00O\x00f\x00f\x00i\x00c\x00e\x03\x00\x00\x86\x90L\xcbyB\x00\x01$\x00c\x006\x00f\x008\x006\x000\x009\x00d\x00-\x004\x00b\x000\x002\x00-\x004\x002\x002\x002\x00-\x008\x003\x004\x004\x00-\x00f\x001\x008\x007\x00b\x00c\x00a\x00a\x00c\x001\x009\x006' @ 25359 : 1
+2026/03/03-15:56:06.301 b7ef93 Compacting 1@1 + 1@2 files
+2026/03/03-15:56:06.307 b7ef93 Generated table #8@1: 1279 keys, 88832 bytes
+2026/03/03-15:56:06.307 b7ef93 Compacted 1@1 + 1@2 files => 88832 bytes
+2026/03/03-15:56:06.307 b7ef93 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/03/03-15:56:06.308 b7ef93 Delete type=2 #7
+2026/03/03-15:56:06.308 b7ef93 Delete type=2 #5
+2026/03/03-15:56:06.310 b7ef93 Manual compaction at level-1 from '\x00\x01\x01"\x04\x02\x01\x0a\x00p\x00o\x00s\x00t\x00O\x00f\x00f\x00i\x00c\x00e\x03\x00\x00\x86\x90L\xcbyB\x00\x01$\x00c\x006\x00f\x008\x006\x000\x009\x00d\x00-\x004\x00b\x000\x002\x00-\x004\x002\x002\x002\x00-\x008\x003\x004\x004\x00-\x00f\x001\x008\x007\x00b\x00c\x00a\x00a\x00c\x001\x009\x006' @ 25359 : 1 .. (end); will stop at (end)

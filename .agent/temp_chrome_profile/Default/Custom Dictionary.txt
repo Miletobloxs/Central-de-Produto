@@ -1,0 +1,2 @@
+entregável
+checksum_v1 = 8ea35fa38b0f87311b0a0994efa172a5

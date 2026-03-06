@@ -1,0 +1,2 @@
+import{cS as o}from"./ask-input-yG-IuTmc.js";const e={Meta:"⌘",Alt:"⌥",Shift:"⇧",ArrowUp:"↑",ArrowDown:"↓",ArrowLeft:"←",ArrowRight:"→",Enter:"⏎",Period:".",Semicolon:";",Slash:"/",Escape:"Esc"},n={"⌘":"Meta","⌥":"Alt","⇧":"Shift","↑":"ArrowUp","↓":"ArrowDown","←":"ArrowLeft","→":"ArrowRight","⏎":"Enter"},i=(r,t=o.MACOS)=>r==="Meta"?t===o.WINDOWS?"Win":"⌘":e[r]||r,c=r=>r==="Win"?"Meta":n[r]||r;export{c as a,i as c};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_spa/assets/utils-CAv3yZ6v.js.map

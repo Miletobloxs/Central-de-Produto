@@ -1,0 +1,6 @@
+2026/03/02-23:04:23.879 b7efa0 Creating DB /Users/carloscarneiro/.gemini/antigravity/scratch/projects/automacao-correcoes/.agent/temp_chrome_profile/Default/IndexedDB/https_ai.google.dev_0.indexeddb.leveldb since it was missing.
+2026/03/02-23:04:23.885 b7efa0 Reusing MANIFEST /Users/carloscarneiro/.gemini/antigravity/scratch/projects/automacao-correcoes/.agent/temp_chrome_profile/Default/IndexedDB/https_ai.google.dev_0.indexeddb.leveldb/MANIFEST-000001
+2026/03/03-02:08:32.253 b7ef90 Level-0 table #5: started
+2026/03/03-02:08:32.259 b7ef90 Level-0 table #5: 3327 bytes OK
+2026/03/03-02:08:32.260 b7ef90 Delete type=0 #3
+2026/03/03-02:08:32.261 b7ef90 Manual compaction at level-0 from (begin) .. (end); will stop at (end)

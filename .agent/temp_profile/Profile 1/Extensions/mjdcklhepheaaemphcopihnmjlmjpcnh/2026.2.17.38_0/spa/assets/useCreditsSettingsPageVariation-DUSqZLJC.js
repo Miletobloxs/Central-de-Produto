@@ -1,0 +1,2 @@
+import{r as i}from"./vendors-Cf2H4Q9h.js";import{e as o}from"./experimentation-BBKfjDdw.js";const p=(r,a,s)=>{const{value:t,loading:e}=o({flag:"credits-settings-page",defaultValue:r,extraAttributes:a,subjectType:"user_nextauth_id",shortCircuitCases:s});return i.useMemo(()=>({variation:t,loading:e}),[t,e])};export{p as u};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_spa/assets/useCreditsSettingsPageVariation-DUSqZLJC.js.map

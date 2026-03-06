@@ -1,0 +1,6 @@
+2026/02/14-20:06:53.711 14a0f0 Creating DB /Users/carloscarneiro/Library/Application Support/Comet/Profile 1/WebStorage/5/IndexedDB/indexeddb.leveldb since it was missing.
+2026/02/14-20:06:53.714 14a0f0 Reusing MANIFEST /Users/carloscarneiro/Library/Application Support/Comet/Profile 1/WebStorage/5/IndexedDB/indexeddb.leveldb/MANIFEST-000001
+2026/02/14-20:09:39.937 14a0f0 Level-0 table #5: started
+2026/02/14-20:09:39.938 14a0f0 Level-0 table #5: 9535 bytes OK
+2026/02/14-20:09:39.938 14a0f0 Delete type=0 #3
+2026/02/14-20:09:39.939 14a0f0 Manual compaction at level-0 from (begin) .. (end); will stop at (end)

@@ -43,6 +43,8 @@ const environments: { id: Environment; label: string }[] = [
   { id: "dev", label: "Dev" },
 ];
 
+import { createFlagAction, updateRolloutAction, toggleFlagAction, getFlagsAction } from "@/lib/actions/flags.actions";
+
 /* ─── NewFlagModal ────────────────────────────────────────────────── */
 function NewFlagModal({
   open,
@@ -76,23 +78,24 @@ function NewFlagModal({
       return;
     }
     setSaving(true);
-    const supabase = createClient();
-    const segmentList = form.segments.split(",").map((s) => s.trim()).filter(Boolean);
-    const { error: err } = await supabase.from("feature_flags").insert({
-      key: form.key.trim(),
-      label: form.label.trim(),
-      description: form.description.trim() || null,
-      type: form.type,
-      active: form.active,
-      rollout: form.rollout,
-      segments: segmentList,
-      modified_by: form.modified_by.trim() || null,
-      epic_id: form.epic_id || null,
-    });
-    setSaving(false);
-    if (err) { setError(err.message); return; }
-    onSave();
-    onClose();
+
+    try {
+      const segmentList = form.segments.split(",").map((s) => s.trim()).filter(Boolean);
+      await createFlagAction({
+        key: form.key.trim(),
+        label: form.label.trim(),
+        description: form.description.trim() || undefined,
+        type: form.type as any, // Mapeando type para killer_switch se necessário, mas o enum no schema é release/experiment/kill_switch
+        rollout: form.rollout,
+        segments: segmentList,
+      });
+      onSave();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || "Erro ao criar flag");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!open) return null;
@@ -144,11 +147,10 @@ function NewFlagModal({
                 <button
                   key={k}
                   onClick={() => setForm({ ...form, type: k })}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                    form.type === k
-                      ? `${v.bg} ${v.color} ${v.border}`
-                      : "bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300"
-                  }`}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${form.type === k
+                    ? `${v.bg} ${v.color} ${v.border}`
+                    : "bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300"
+                    }`}
                 >
                   {v.label}
                 </button>
@@ -160,11 +162,10 @@ function NewFlagModal({
               <label className="text-xs font-semibold text-gray-500">Rollout: {form.rollout}%</label>
               <button
                 onClick={() => setForm({ ...form, active: !form.active })}
-                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full transition-all ${
-                  form.active
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-gray-100 text-gray-500"
-                }`}
+                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full transition-all ${form.active
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-gray-100 text-gray-500"
+                  }`}
               >
                 {form.active ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
                 {form.active ? "Ativa" : "Inativa"}
@@ -246,14 +247,20 @@ export default function FeatureFlagsPage() {
   const [showModal, setShowModal] = useState(false);
 
   const fetchAll = useCallback(async () => {
-    const supabase = createClient();
-    const [fRes, eRes] = await Promise.all([
-      supabase.from("feature_flags").select("*").order("type", { ascending: true }).order("label", { ascending: true }),
-      supabase.from("epics").select("id, name, color"),
-    ]);
-    setFlags(fRes.data ?? []);
-    setEpics(eRes.data ?? []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const data = await getFlagsAction();
+      // Mapear epics (ainda via Supabase por enquanto ou manter mock se não houver service)
+      const supabase = createClient();
+      const { data: eData } = await supabase.from("epics").select("id, name, color");
+
+      setFlags(data as any);
+      setEpics(eData ?? []);
+    } catch (error) {
+      console.error("Error fetching flags:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -262,6 +269,12 @@ export default function FeatureFlagsPage() {
     () => Object.fromEntries(epics.map((e) => [e.id, e])),
     [epics]
   );
+
+  const activeByEnv = (f: any) => {
+    if (env === "production") return f.isProd;
+    if (env === "staging") return f.isStaging;
+    return f.isDev;
+  };
 
   const filtered = useMemo(
     () =>
@@ -274,24 +287,24 @@ export default function FeatureFlagsPage() {
     [flags, search]
   );
 
-  const activeCount = flags.filter((f) => f.active).length;
+  const activeCount = flags.filter(activeByEnv).length;
   const experimentCount = flags.filter((f) => f.type === "experiment").length;
   const inactiveCount = flags.length - activeCount;
 
-  async function toggleFlag(flag: FeatureFlag) {
+  async function toggleFlag(flag: any) {
     if (toggling) return;
     setToggling(flag.id);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("feature_flags")
-      .update({ active: !flag.active })
-      .eq("id", flag.id);
-    if (!error) {
-      setFlags((prev) =>
-        prev.map((f) => (f.id === flag.id ? { ...f, active: !f.active } : f))
-      );
+
+    try {
+      const currentActive = activeByEnv(flag);
+      const targetEnv = env === "production" ? "prod" : env;
+      await toggleFlagAction(flag.id, targetEnv as any, !currentActive);
+      await fetchAll();
+    } catch (error) {
+      console.error("Error toggling flag:", error);
+    } finally {
+      setToggling(null);
     }
-    setToggling(null);
   }
 
   if (loading) {
@@ -328,9 +341,8 @@ export default function FeatureFlagsPage() {
               <button
                 key={e.id}
                 onClick={() => setEnv(e.id)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
-                  env === e.id ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${env === e.id ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 {e.label}
               </button>
@@ -418,9 +430,8 @@ export default function FeatureFlagsPage() {
                       <button
                         onClick={() => toggleFlag(flag)}
                         disabled={isToggling}
-                        className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${
-                          flag.active ? "bg-emerald-500" : "bg-gray-200"
-                        }`}
+                        className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${flag.active ? "bg-emerald-500" : "bg-gray-200"
+                          }`}
                       >
                         {isToggling ? (
                           <Loader2
@@ -429,9 +440,8 @@ export default function FeatureFlagsPage() {
                           />
                         ) : (
                           <div
-                            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                              flag.active ? "translate-x-5" : "translate-x-0.5"
-                            }`}
+                            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${flag.active ? "translate-x-5" : "translate-x-0.5"
+                              }`}
                           />
                         )}
                       </button>
@@ -470,13 +480,12 @@ export default function FeatureFlagsPage() {
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-xs text-gray-500">Rollout</span>
                         <span
-                          className={`text-xs font-bold ${
-                            flag.rollout === 100
-                              ? "text-emerald-600"
-                              : flag.rollout === 0
+                          className={`text-xs font-bold ${flag.rollout === 100
+                            ? "text-emerald-600"
+                            : flag.rollout === 0
                               ? "text-gray-400"
                               : "text-blue-600"
-                          }`}
+                            }`}
                         >
                           {flag.rollout}%
                         </span>
@@ -541,8 +550,8 @@ export default function FeatureFlagsPage() {
               {key === "release"
                 ? "— funcionalidade em produção"
                 : key === "experiment"
-                ? "— teste com % dos usuários"
-                : "— desliga feature de emergência"}
+                  ? "— teste com % dos usuários"
+                  : "— desliga feature de emergência"}
             </span>
           </div>
         ))}

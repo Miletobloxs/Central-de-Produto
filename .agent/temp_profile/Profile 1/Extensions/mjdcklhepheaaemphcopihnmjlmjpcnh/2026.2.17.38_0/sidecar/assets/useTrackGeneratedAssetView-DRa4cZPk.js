@@ -1,0 +1,2 @@
+import{r as a}from"./vendors-D4Smnno0.js";import{a as i}from"./index-BaGL3GVE.js";import{u}from"./platform-core-C-zYqcOe.js";const v=({assetType:e,entryUUID:t,answerMode:s,reason:r,skip:o})=>{const{session:n}=u(),{trackEventOnce:c}=i(n);a.useEffect(()=>{o||!e||c("generated asset viewed",{assetType:e,entryUUID:t,answerMode:s,reason:r})},[c,e,t,s,r,o])};export{v as u};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_sidecar/assets/useTrackGeneratedAssetView-DRa4cZPk.js.map

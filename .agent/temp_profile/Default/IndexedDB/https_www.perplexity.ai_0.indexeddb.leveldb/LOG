@@ -1,0 +1,12 @@
+2026/02/16-19:43:23.150 107055 Reusing MANIFEST /Users/carloscarneiro/Library/Application Support/Comet/Profile 1/IndexedDB/https_www.perplexity.ai_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/16-19:43:23.150 107055 Recovering log #56
+2026/02/16-19:43:23.155 107055 Reusing old log /Users/carloscarneiro/Library/Application Support/Comet/Profile 1/IndexedDB/https_www.perplexity.ai_0.indexeddb.leveldb/000056.log 
+2026/02/16-19:43:23.645 107038 Level-0 table #62: started
+2026/02/16-19:43:23.654 107038 Level-0 table #62: 1527575 bytes OK
+2026/02/16-19:43:23.655 107038 Delete type=0 #56
+2026/02/16-19:43:23.658 107038 Compacting 1@1 + 1@2 files
+2026/02/16-19:43:23.664 107038 Generated table #63@1: 1562 keys, 579064 bytes
+2026/02/16-19:43:23.664 107038 Compacted 1@1 + 1@2 files => 579064 bytes
+2026/02/16-19:43:23.665 107038 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/16-19:43:23.665 107038 Delete type=2 #62
+2026/02/16-19:43:23.665 107038 Delete type=2 #59

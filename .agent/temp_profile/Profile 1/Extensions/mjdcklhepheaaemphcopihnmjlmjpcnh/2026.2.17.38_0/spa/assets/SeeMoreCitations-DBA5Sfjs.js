@@ -1,0 +1,2 @@
+import{j as e}from"./vendors-Cf2H4Q9h.js";import{u as l}from"./i18n-DNY0yzXR.js";import{B as o}from"./aether-core-g39479IO.js";const u=({onClick:s,label:t,disabled:r})=>{const{$t:i}=l();return e.jsxs("div",{className:"flex items-center gap-sm w-full",children:[e.jsx(o,{disabled:r,variant:"text",size:"small",onClick:s,inline:!0,children:t??i({defaultMessage:"See more",id:"yoLwRWw99S"})}),e.jsx("hr",{className:"border-subtlest w-full"})]})};export{u as S};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_spa/assets/SeeMoreCitations-DBA5Sfjs.js.map
