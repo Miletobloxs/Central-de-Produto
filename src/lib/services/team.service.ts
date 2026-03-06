@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Permission } from "./access.service";
-import { UserRole } from "@prisma/client";
+import { UserRole, InviteStatus } from "@prisma/client";
+import crypto from "crypto";
 
 export interface TeamGroup {
     id: string;
@@ -103,6 +104,55 @@ export class TeamService {
         return await (prisma as any).user.delete({
             where: { id },
         });
+    }
+
+    /**
+     * Gera um novo convite para colaborador.
+     */
+    async createInvite(data: { email: string; role: UserRole; groupId?: string | null }) {
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24); // Expiração de 24h
+
+        return await (prisma as any).userInvite.create({
+            data: {
+                ...data,
+                token,
+                expiresAt,
+                status: InviteStatus.PENDENTE,
+            },
+        });
+    }
+
+    /**
+     * Lista convites pendentes e não expirados.
+     */
+    async listPendingInvites() {
+        return await (prisma as any).userInvite.findMany({
+            where: {
+                status: InviteStatus.PENDENTE,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    /**
+     * Valida um token de convite.
+     */
+    async validateInvite(token: string) {
+        const invite = await (prisma as any).userInvite.findUnique({
+            where: { token },
+        });
+
+        if (!invite) return null;
+
+        // Verificar status e expiração
+        if (invite.status !== InviteStatus.PENDENTE || new Date() > invite.expiresAt) {
+            // Opcional: Marcar como expirado no banco se necessário
+            return null;
+        }
+
+        return invite;
     }
 }
 
