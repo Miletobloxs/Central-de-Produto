@@ -40,6 +40,16 @@ export class TeamService {
     }
 
     /**
+     * Atualiza um grupo existente.
+     */
+    async updateGroup(id: string, data: { name?: string; description?: string; permissions?: Permission[] }) {
+        return await prisma.teamGroup.update({
+            where: { id },
+            data,
+        });
+    }
+
+    /**
      * Lista usuários para vinculação a grupos.
      */
     async listUsers() {

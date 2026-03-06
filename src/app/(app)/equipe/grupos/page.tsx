@@ -12,7 +12,7 @@ import {
     Loader2
 } from "lucide-react";
 
-import { getGroupsAction, createGroupAction } from "@/lib/actions/team.actions";
+import { getGroupsAction, createGroupAction, updateGroupAction } from "@/lib/actions/team.actions";
 import type { Permission } from "@/lib/services/access.service";
 
 const AVAILABLE_PERMISSIONS = [
@@ -32,6 +32,7 @@ export default function GroupsPage() {
     const [newName, setNewName] = useState("");
     const [newDescription, setNewDescription] = useState("");
     const [selectedPermissions, setSelectedPermissions] = useState<Permission[]>([]);
+    const [editingGroup, setEditingGroup] = useState<any | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchGroups = async () => {
@@ -50,25 +51,53 @@ export default function GroupsPage() {
         fetchGroups();
     }, []);
 
-    const handleCreateGroup = async () => {
+    const handleSaveGroup = async () => {
         if (!newName || isSubmitting) return;
         setIsSubmitting(true);
         try {
-            await createGroupAction({
-                name: newName,
-                description: newDescription,
-                permissions: selectedPermissions
-            });
-            setIsModalOpen(false);
-            setNewName("");
-            setNewDescription("");
-            setSelectedPermissions([]);
+            if (editingGroup) {
+                await updateGroupAction(editingGroup.id, {
+                    name: newName,
+                    description: newDescription,
+                    permissions: selectedPermissions
+                });
+            } else {
+                await createGroupAction({
+                    name: newName,
+                    description: newDescription,
+                    permissions: selectedPermissions
+                });
+            }
+            closeModal();
             fetchGroups();
         } catch (error) {
-            console.error("Failed to create group:", error);
+            console.error("Failed to save group:", error);
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const openModal = (group?: any) => {
+        if (group) {
+            setEditingGroup(group);
+            setNewName(group.name);
+            setNewDescription(group.description || "");
+            setSelectedPermissions(group.permissions || []);
+        } else {
+            setEditingGroup(null);
+            setNewName("");
+            setNewDescription("");
+            setSelectedPermissions([]);
+        }
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setEditingGroup(null);
+        setNewName("");
+        setNewDescription("");
+        setSelectedPermissions([]);
     };
 
     const togglePermission = (permId: Permission) => {
@@ -88,7 +117,7 @@ export default function GroupsPage() {
                     <p className="text-sm text-gray-500 mt-1">Gerencie permissões dinâmicas para o time da Bloxs.</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => openModal()}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95"
                 >
                     <Plus size={18} />
@@ -168,7 +197,10 @@ export default function GroupsPage() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                                        <button
+                                            onClick={() => openModal(group)}
+                                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                        >
                                             <MoreVertical size={16} />
                                         </button>
                                     </td>
@@ -190,10 +222,12 @@ export default function GroupsPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-900">Configurar Grupo</h3>
-                                    <p className="text-xs text-gray-500 mt-0.5">Defina o nome e as regras de acesso.</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        {editingGroup ? "Edite as configurações do grupo." : "Defina o nome e as regras de acesso."}
+                                    </p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-2">
+                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 p-2">
                                 <Plus size={24} className="rotate-45" />
                             </button>
                         </div>
@@ -255,19 +289,19 @@ export default function GroupsPage() {
 
                         <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
                             <button
-                                onClick={() => setIsModalOpen(false)}
+                                onClick={closeModal}
                                 disabled={isSubmitting}
                                 className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-200 transition-all disabled:opacity-50"
                             >
                                 Cancelar
                             </button>
                             <button
-                                onClick={handleCreateGroup}
+                                onClick={handleSaveGroup}
                                 disabled={isSubmitting || !newName}
                                 className="px-6 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
                             >
                                 {isSubmitting && <Loader2 size={14} className="animate-spin" />}
-                                Salvar Grupo
+                                {editingGroup ? "Atualizar Grupo" : "Salvar Grupo"}
                             </button>
                         </div>
                     </div>
