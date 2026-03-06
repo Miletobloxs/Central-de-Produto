@@ -1,0 +1,2 @@
+import{r as t}from"./platform-components-DuWQbdpN.js";import"./platform-core-DyhArgEa.js";import"./vendors-Cf2H4Q9h.js";import"./vite-h6ohMMGa.js";import"./i18n-DNY0yzXR.js";import"./aether-core-g39479IO.js";import"./pplx-icons-CyseQcag.js";function c(r){const{upsellInformation:n}=r,{permalink_new_tab:o,permalink:i}=n.cta_information??{};i&&(o?window.open(i,"_blank"):t(i,"Upsell permalink"))}export{c as handlePermalink};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_spa/assets/handlePermalink-BHhX13eN.js.map

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { okrService } from "@/lib/services/okr.service";
 import type { Objective, KeyResult, OKRStatus } from "@/types/product";
 import {
   Target,
@@ -19,10 +20,10 @@ import {
 const QUARTERS = ["Q4 2025", "Q1 2026", "Q2 2026", "Q3 2026"];
 
 const STATUS_CONFIG: Record<OKRStatus, { label: string; color: string; dot: string }> = {
-  on_track:  { label: "No Prazo",  color: "text-emerald-600 bg-emerald-50", dot: "bg-emerald-500" },
-  at_risk:   { label: "Em Risco",  color: "text-amber-600 bg-amber-50",    dot: "bg-amber-400"  },
-  off_track: { label: "Atrasado",  color: "text-red-600 bg-red-50",        dot: "bg-red-500"    },
-  completed: { label: "Concluído", color: "text-gray-500 bg-gray-100",     dot: "bg-gray-400"   },
+  on_track: { label: "No Prazo", color: "text-emerald-600 bg-emerald-50", dot: "bg-emerald-500" },
+  at_risk: { label: "Em Risco", color: "text-amber-600 bg-amber-50", dot: "bg-amber-400" },
+  off_track: { label: "Atrasado", color: "text-red-600 bg-red-50", dot: "bg-red-500" },
+  completed: { label: "Concluído", color: "text-gray-500 bg-gray-100", dot: "bg-gray-400" },
 };
 
 // ─── Progress Ring ────────────────────────────────────────────
@@ -127,34 +128,26 @@ export default function OKRsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data: objs } = await supabase
-      .from("objectives")
-      .select("*, key_results(*)")
-      .eq("quarter", quarter)
-      .order("created_at", { ascending: true });
-    setObjectives(objs ?? []);
+    const objs = await okrService.getObjectivesByQuarter(quarter);
+    setObjectives(objs);
     if (objs && objs.length > 0) {
       setExpanded(new Set(objs.map((o: Objective) => o.id)));
     }
     setLoading(false);
-  }, [supabase, quarter]);
+  }, [quarter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   async function createObjective() {
     if (!newObjTitle.trim()) return;
-    const { data } = await supabase
-      .from("objectives")
-      .insert({ title: newObjTitle.trim(), quarter, status: "on_track" })
-      .select()
-      .single();
+    const data = await okrService.createObjective(newObjTitle.trim(), quarter);
     if (data) setObjectives((prev) => [...prev, { ...data, key_results: [] }]);
     setNewObjTitle("");
     setAddingObj(false);
   }
 
   async function deleteObjective(id: string) {
-    await supabase.from("objectives").delete().eq("id", id);
+    await okrService.deleteObjective(id);
     setObjectives((prev) => prev.filter((o) => o.id !== id));
   }
 
@@ -208,9 +201,9 @@ export default function OKRsPage() {
     // Update KR current value
     const newStatus: OKRStatus =
       value >= kr.target_value ? "completed"
-      : value / kr.target_value >= 0.7 ? "on_track"
-      : value / kr.target_value >= 0.4 ? "at_risk"
-      : "off_track";
+        : value / kr.target_value >= 0.7 ? "on_track"
+          : value / kr.target_value >= 0.4 ? "at_risk"
+            : "off_track";
 
     await supabase
       .from("key_results")
@@ -237,10 +230,7 @@ export default function OKRsPage() {
   }
 
   function objProgress(obj: Objective) {
-    const krs = obj.key_results ?? [];
-    if (krs.length === 0) return 0;
-    const avg = krs.reduce((s, kr) => s + Math.min(100, (kr.current_value / (kr.target_value || 1)) * 100), 0) / krs.length;
-    return Math.round(avg);
+    return okrService.calculateObjectiveProgress(obj);
   }
 
   if (loading) {
@@ -272,9 +262,8 @@ export default function OKRsPage() {
             <button
               key={q}
               onClick={() => setQuarter(q)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${
-                quarter === q ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
-              }`}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${quarter === q ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
+                }`}
             >
               {q}
             </button>

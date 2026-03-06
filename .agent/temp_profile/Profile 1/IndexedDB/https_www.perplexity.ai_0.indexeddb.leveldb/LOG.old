@@ -1,0 +1,6 @@
+2026/02/16-22:53:55.910 146352 Reusing MANIFEST /Users/carloscarneiro/.gemini/antigravity/scratch/projects/automacao-correcoes/.agent/temp_profile/Profile 1/IndexedDB/https_www.perplexity.ai_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/16-22:53:55.910 146352 Recovering log #23
+2026/02/16-22:53:55.914 146352 Reusing old log /Users/carloscarneiro/.gemini/antigravity/scratch/projects/automacao-correcoes/.agent/temp_profile/Profile 1/IndexedDB/https_www.perplexity.ai_0.indexeddb.leveldb/000023.log 
+2026/02/16-22:53:56.279 146352 Level-0 table #28: started
+2026/02/16-22:53:56.290 146352 Level-0 table #28: 1596150 bytes OK
+2026/02/16-22:53:56.294 146352 Delete type=0 #23

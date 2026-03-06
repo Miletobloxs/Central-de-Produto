@@ -34,29 +34,29 @@ const STREAMS = [
 ];
 
 const COLORS = [
-  { id: "blue",    bg: "bg-blue-500"    },
-  { id: "purple",  bg: "bg-purple-500"  },
-  { id: "amber",   bg: "bg-amber-500"   },
+  { id: "blue", bg: "bg-blue-500" },
+  { id: "purple", bg: "bg-purple-500" },
+  { id: "amber", bg: "bg-amber-500" },
   { id: "emerald", bg: "bg-emerald-500" },
-  { id: "pink",    bg: "bg-pink-500"    },
-  { id: "slate",   bg: "bg-slate-500"   },
-  { id: "rose",    bg: "bg-rose-500"    },
-  { id: "orange",  bg: "bg-orange-500"  },
-  { id: "teal",    bg: "bg-teal-500"    },
-  { id: "indigo",  bg: "bg-indigo-500"  },
+  { id: "pink", bg: "bg-pink-500" },
+  { id: "slate", bg: "bg-slate-500" },
+  { id: "rose", bg: "bg-rose-500" },
+  { id: "orange", bg: "bg-orange-500" },
+  { id: "teal", bg: "bg-teal-500" },
+  { id: "indigo", bg: "bg-indigo-500" },
 ];
 
 const STATUS_META: Record<EpicStatus, { label: string; color: string }> = {
-  planned:     { label: "Planejado",    color: "text-purple-600 bg-purple-50" },
+  planned: { label: "Planejado", color: "text-purple-600 bg-purple-50" },
   in_progress: { label: "Em Progresso", color: "text-blue-600 bg-blue-50" },
-  completed:   { label: "Concluído",    color: "text-emerald-600 bg-emerald-50" },
-  delayed:     { label: "Atrasado",     color: "text-red-600 bg-red-50" },
+  completed: { label: "Concluído", color: "text-emerald-600 bg-emerald-50" },
+  delayed: { label: "Atrasado", color: "text-red-600 bg-red-50" },
 };
 
 const PRIORITY_META: Record<EpicPriority, { label: string; color: string }> = {
-  high:   { label: "Alta",  color: "text-red-600 bg-red-50 border-red-200" },
+  high: { label: "Alta", color: "text-red-600 bg-red-50 border-red-200" },
   medium: { label: "Média", color: "text-amber-600 bg-amber-50 border-amber-200" },
-  low:    { label: "Baixa", color: "text-gray-500 bg-gray-50 border-gray-200" },
+  low: { label: "Baixa", color: "text-gray-500 bg-gray-50 border-gray-200" },
 };
 
 // ─── Timeline helpers ─────────────────────────────────────────
@@ -109,12 +109,12 @@ function epicPosition(epic: Epic, timelineStart: Date, totalMonths: number) {
     ? new Date(epic.end_date)
     : new Date(s.getFullYear(), s.getMonth() + 1, 0);
   const startOff = diffMonths(timelineStart, new Date(s.getFullYear(), s.getMonth(), 1));
-  const endOff   = diffMonths(timelineStart, new Date(e.getFullYear(), e.getMonth(), 1));
+  const endOff = diffMonths(timelineStart, new Date(e.getFullYear(), e.getMonth(), 1));
   const cs = Math.max(0, startOff);
   const ce = Math.min(totalMonths - 1, endOff);
   if (ce < 0 || cs >= totalMonths) return null;
   return {
-    left:  (cs / totalMonths) * 100,
+    left: (cs / totalMonths) * 100,
     width: ((ce - cs + 1) / totalMonths) * 100,
   };
 }
@@ -135,6 +135,8 @@ const INIT_FORM = {
   end_date: "",
 };
 
+import { createEpicAction, linkSprintsToEpicAction, getEpicsAction } from "@/lib/actions/roadmap.actions";
+
 function EpicModal({
   allSprints,
   onClose,
@@ -144,7 +146,6 @@ function EpicModal({
   onClose: () => void;
   onCreated: (epic: Epic) => void;
 }) {
-  const supabase = createClient();
   const [form, setForm] = useState(INIT_FORM);
   const [selectedSprintIds, setSelectedSprintIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -162,36 +163,29 @@ function EpicModal({
     setSaving(true);
     setError("");
 
-    const { data: epic, error: err } = await supabase
-      .from("epics")
-      .insert({
-        name:        form.title.trim(),
-        description: form.description.trim() || null,
-        stream:      form.stream,
-        status:      form.status,
-        priority:    form.priority,
-        color:       form.color,
-        start_date:  form.start_date || null,
-        end_date:    form.end_date   || null,
-      })
-      .select()
-      .single();
+    try {
+      const epic = await createEpicAction({
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        stream: form.stream,
+        status: form.status as any,
+        priority: form.priority,
+        color: form.color,
+        startDate: form.start_date ? new Date(form.start_date) : undefined,
+        endDate: form.end_date ? new Date(form.end_date) : undefined,
+      });
 
-    if (err || !epic) {
-      setError(err?.message ?? "Erro ao criar épico");
+      if (selectedSprintIds.length > 0) {
+        await linkSprintsToEpicAction(selectedSprintIds, epic.id);
+      }
+
+      const linkedSprints = allSprints.filter((s) => selectedSprintIds.includes(s.id));
+      onCreated({ ...epic, sprints: linkedSprints } as any);
+    } catch (err: any) {
+      setError(err.message || "Erro ao criar épico");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    if (selectedSprintIds.length > 0) {
-      await supabase
-        .from("sprints")
-        .update({ epic_id: epic.id })
-        .in("id", selectedSprintIds);
-    }
-
-    const linkedSprints = allSprints.filter((s) => selectedSprintIds.includes(s.id));
-    onCreated({ ...epic, sprints: linkedSprints });
   }
 
   return (
@@ -312,11 +306,10 @@ function EpicModal({
                   key={c.id}
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, color: c.id }))}
-                  className={`w-7 h-7 rounded-full ${c.bg} transition-transform ${
-                    form.color === c.id
-                      ? "ring-2 ring-offset-2 ring-gray-500 scale-110"
-                      : "opacity-60 hover:opacity-100 hover:scale-105"
-                  }`}
+                  className={`w-7 h-7 rounded-full ${c.bg} transition-transform ${form.color === c.id
+                    ? "ring-2 ring-offset-2 ring-gray-500 scale-110"
+                    : "opacity-60 hover:opacity-100 hover:scale-105"
+                    }`}
                 />
               ))}
             </div>
@@ -340,9 +333,8 @@ function EpicModal({
                   return (
                     <label
                       key={sprint.id}
-                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-gray-50 last:border-0 transition-colors ${
-                        checked ? "bg-blue-50" : "hover:bg-gray-50"
-                      }`}
+                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-gray-50 last:border-0 transition-colors ${checked ? "bg-blue-50" : "hover:bg-gray-50"
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -351,11 +343,10 @@ function EpicModal({
                         className="accent-blue-600 w-3.5 h-3.5 shrink-0"
                       />
                       <span className="text-sm text-gray-700 flex-1 truncate">{sprint.name}</span>
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${
-                        sprint.status === "active"    ? "bg-blue-50 text-blue-600" :
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${sprint.status === "active" ? "bg-blue-50 text-blue-600" :
                         sprint.status === "completed" ? "bg-emerald-50 text-emerald-600" :
-                        "bg-gray-100 text-gray-500"
-                      }`}>
+                          "bg-gray-100 text-gray-500"
+                        }`}>
                         {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : "Planejando"}
                       </span>
                       {takenByOther && (
@@ -404,14 +395,21 @@ export default function RoadmapPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [{ data: epicData }, { data: sprintData }] = await Promise.all([
-      supabase.from("epics").select("*, sprints(*)").order("created_at", { ascending: true }),
-      supabase.from("sprints").select("*").order("created_at", { ascending: true }),
-    ]);
-    setEpics((epicData as Epic[]) ?? []);
-    setAllSprints(sprintData ?? []);
-    setLoading(false);
-  }, [supabase]);
+    try {
+      const epicData = await getEpicsAction();
+      // Sprints ainda podem vir separadas se quisermos todas as sprints (mesmo sem épico)
+      // para o modal de criação. No futuro podemos ter um SprintService.
+      const supabase = createClient();
+      const { data: sprintData } = await supabase.from("sprints").select("*").order("created_at", { ascending: true });
+
+      setEpics(epicData as any);
+      setAllSprints(sprintData ?? []);
+    } catch (error) {
+      console.error("Error fetching roadmap data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -423,10 +421,10 @@ export default function RoadmapPage() {
   const streams = useMemo(() => Array.from(new Set(epics.map((e) => e.stream))), [epics]);
 
   const stats = useMemo(() => ({
-    total:       epics.length,
+    total: epics.length,
     in_progress: epics.filter((e) => e.status === "in_progress").length,
-    completed:   epics.filter((e) => e.status === "completed").length,
-    delayed:     epics.filter((e) => e.status === "delayed").length,
+    completed: epics.filter((e) => e.status === "completed").length,
+    delayed: epics.filter((e) => e.status === "delayed").length,
   }), [epics]);
 
   function handleCreated(epic: Epic) {
@@ -472,10 +470,10 @@ export default function RoadmapPage() {
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Total de Épicos",  value: stats.total,       color: "text-gray-900" },
-            { label: "Em Progresso",     value: stats.in_progress, color: "text-blue-600" },
-            { label: "Concluídos",       value: stats.completed,   color: "text-emerald-600" },
-            { label: "Atrasados",        value: stats.delayed,     color: "text-red-500" },
+            { label: "Total de Épicos", value: stats.total, color: "text-gray-900" },
+            { label: "Em Progresso", value: stats.in_progress, color: "text-blue-600" },
+            { label: "Concluídos", value: stats.completed, color: "text-emerald-600" },
+            { label: "Atrasados", value: stats.delayed, color: "text-red-500" },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
               <p className="text-xs text-gray-500 mb-1">{s.label}</p>
@@ -602,7 +600,7 @@ export default function RoadmapPage() {
                         {epic.stream}
                         {sprintCount > 0 && ` · ${sprintCount} sprint${sprintCount > 1 ? "s" : ""}`}
                         {epic.start_date && ` · ${new Date(epic.start_date).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
-                        {epic.end_date   && ` → ${new Date(epic.end_date  ).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
+                        {epic.end_date && ` → ${new Date(epic.end_date).toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}`}
                       </p>
                     </div>
                     <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border shrink-0 ${(PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium).color}`}>

@@ -75,6 +75,7 @@ enum EntityStatus {
   EM_ANALISE
   SUSPENSO
   BLOQUEADO
+  OUTRO
 }
 
 enum PersonType {
@@ -97,10 +98,30 @@ enum RiskProfile {
 enum UserRole {
   SUPER_ADMIN
   ADMIN
+  DEVELOPER
+  BLOXXS_TEAM
   ORIGINADOR
   DISTRIBUIDOR
   ASSESSOR
   INVESTIDOR
+}
+
+// ============================================
+// CONFIGURAÇÃO DE EQUIPES E ACESSO
+// ============================================
+
+model TeamGroup {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  permissions String[] // Permissões granulares mapeadas no AccessService
+  
+  users       User[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@map("team_groups")
 }
 
 // ============================================
@@ -113,14 +134,20 @@ model User {
   role      UserRole @default(INVESTIDOR)
   name      String?
   avatar    String?
+  
+  // Customization for Team Roles
+  groupId   String?
+  group     TeamGroup? @relation(fields: [groupId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  originatorProfile   Originator?
-  distributorProfile  Distributor?
-  assessorProfile     Assessor?
-  investorProfile     InvestorProfile?
+  originatorProfile  Originator?
+  distributorProfile Distributor?
+  assessorProfile    Assessor?
+  investorProfile    InvestorProfile?
+  decisions          Decision[]
 
   @@map("users")
 }
@@ -135,7 +162,7 @@ model Offer {
   type      OfferType
   status    OfferStatus @default(EM_CAPTACAO)
   volume    Decimal     @db.Decimal(15, 2)
-  raised    Decimal     @db.Decimal(15, 2) @default(0)
+  raised    Decimal     @default(0) @db.Decimal(15, 2)
   progress  Int         @default(0) // 0-100
   deadline  DateTime
   minTicket Decimal     @db.Decimal(15, 2)
@@ -241,18 +268,18 @@ model Submission {
 // ============================================
 
 model InvestorProfile {
-  id          String  @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String
-  cpf         String  @unique
-  email       String  @unique
+  cpf         String      @unique
+  email       String      @unique
   phone       String
   riskProfile RiskProfile
 
   // Dados Financeiros
   ticketMedio         Decimal @db.Decimal(15, 2)
-  totalInvested       Decimal @db.Decimal(15, 2) @default(0)
+  totalInvested       Decimal @default(0) @db.Decimal(15, 2)
   numberOfInvestments Int     @default(0)
-  portfolioValue      Decimal @db.Decimal(15, 2) @default(0)
+  portfolioValue      Decimal @default(0) @db.Decimal(15, 2)
   grossIncome         Decimal @db.Decimal(15, 2)
   monthlyExpense      Decimal @db.Decimal(15, 2)
   netWorth            Decimal @db.Decimal(15, 2)
@@ -282,11 +309,11 @@ model InvestorProfile {
 
 // Tabela de junção N-N entre Investor e Offer
 model InvestorOffer {
-  id               String   @id @default(cuid())
-  amount           Decimal  @db.Decimal(15, 2)
-  investmentDate   DateTime @default(now())
-  expectedReturn   String // Ex: "12.5% a.a."
-  currentStatus    String // Ex: "Ativo", "Liquidado"
+  id             String   @id @default(cuid())
+  amount         Decimal  @db.Decimal(15, 2)
+  investmentDate DateTime @default(now())
+  expectedReturn String // Ex: "12.5% a.a."
+  currentStatus  String // Ex: "Ativo", "Liquidado"
 
   investorId String
   investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
@@ -311,7 +338,7 @@ model Originator {
   type             PersonType
   email            String       @unique
   phone            String
-  totalEmitted     Decimal      @db.Decimal(15, 2) @default(0)
+  totalEmitted     Decimal      @default(0) @db.Decimal(15, 2)
   activeOffers     Int          @default(0)
   status           EntityStatus @default(ATIVO)
   registrationDate DateTime     @default(now())
@@ -335,20 +362,20 @@ model Originator {
 // ============================================
 
 model Distributor {
-  id               String           @id @default(cuid())
+  id               String          @id @default(cuid())
   name             String
-  cnpj             String           @unique
+  cnpj             String          @unique
   type             DistributorType
-  email            String           @unique
+  email            String          @unique
   phone            String
-  totalDistributed Decimal          @db.Decimal(15, 2) @default(0)
-  activeOffers     Int              @default(0)
+  totalDistributed Decimal         @default(0) @db.Decimal(15, 2)
+  activeOffers     Int             @default(0)
   commission       String // Ex: "1.5%"
-  status           EntityStatus     @default(ATIVO)
+  status           EntityStatus    @default(ATIVO)
   certifications   String[] // Ex: ["CVM", "ANBIMA", "B3"]
-  registrationDate DateTime         @default(now())
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  registrationDate DateTime        @default(now())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   // Foreign Keys
   userId String? @unique
@@ -372,7 +399,7 @@ model Company {
   address          String
   totalClients     Int          @default(0)
   activeAssessors  Int          @default(0)
-  totalDistributed Decimal      @db.Decimal(15, 2) @default(0)
+  totalDistributed Decimal      @default(0) @db.Decimal(15, 2)
   commission       String // Ex: "1.5%"
   status           EntityStatus @default(ATIVO)
   registrationDate DateTime     @default(now())
@@ -400,7 +427,7 @@ model Assessor {
   registration     String // Ex: "CVM-12345"
   totalClients     Int          @default(0)
   activeContracts  Int          @default(0)
-  totalDistributed Decimal      @db.Decimal(15, 2) @default(0)
+  totalDistributed Decimal      @default(0) @db.Decimal(15, 2)
   commission       String // Ex: "0.8%"
   status           EntityStatus @default(ATIVO)
   certifications   String[] // Ex: ["CVM", "ANCORD", "CFP"]
@@ -435,9 +462,9 @@ model EndClient {
   email             String       @unique
   phone             String
   investmentProfile RiskProfile
-  totalInvested     Decimal      @db.Decimal(15, 2) @default(0)
+  totalInvested     Decimal      @default(0) @db.Decimal(15, 2)
   activeInvestments Int          @default(0)
-  portfolioValue    Decimal      @db.Decimal(15, 2) @default(0)
+  portfolioValue    Decimal      @default(0) @db.Decimal(15, 2)
   status            EntityStatus @default(ATIVO)
   registrationDate  DateTime     @default(now())
   lastInvestment    DateTime?
@@ -452,4 +479,364 @@ model EndClient {
   @@index([assessorId])
   @@index([status])
   @@map("end_clients")
+}
+
+// ============================================
+// ENUMS: PRODUTO & OPERAÇÕES
+// ============================================
+
+enum ReleaseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FlagType {
+  release
+  experiment
+  kill_switch
+}
+
+enum ChangelogType {
+  feature
+  improvement
+  fix
+  breaking
+}
+
+enum RoadmapStatus {
+  BACKLOG
+  DISCOVERY
+  DEVELOPMENT
+  READY
+  RELEASED
+}
+
+enum DecisionStatus {
+  PROPOSED
+  ACCEPTED
+  SUPERSEDED
+  DEPRECATED
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  REPORTED
+  INVESTIGATING
+  IDENTIFIED
+  MONITORING
+  RESOLVED
+}
+
+// ============================================
+// WORKFLOWS DE PRODUTO
+// ============================================
+
+model Release {
+  id          String        @id @default(cuid())
+  version     String        @unique
+  sprint      String?
+  summary     String?       @db.Text
+  date        DateTime      @default(now())
+  visibility  String        @default("public") // 'public' | 'internal'
+  status      ReleaseStatus @default(DRAFT)
+  publishDate DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  changelog ChangelogEntry[]
+
+  @@map("releases")
+}
+
+model ChangelogEntry {
+  id          String        @id @default(cuid())
+  type        ChangelogType @default(feature)
+  title       String
+  description String        @db.Text
+  taskId      String?
+  releaseId   String
+  release     Release       @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+
+  @@map("changelog_entries")
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  description String?  @db.Text
+  type        FlagType @default(release)
+
+  // Status por ambiente (JSON ou tabelas relacionadas)
+  // Para simplificar e manter performance:
+  isDev     Boolean @default(false)
+  isStaging Boolean @default(false)
+  isProd    Boolean @default(false)
+
+  rollout  Int      @default(0) // 0-100
+  segments String[] // Array de segmentos (ex: ["Enterprise", "RCVM 175"])
+
+  lastModified     DateTime @default(now())
+  modifiedBy       String?
+  modifiedInitials String?
+  modifiedColor    String? // Classe CSS de cor (ex: "bg-amber-200 text-amber-800")
+
+  linkedEpic String?
+  epicColor  String? // Classe CSS (ex: "bg-blue-100 text-blue-700")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  audits FlagAudit[]
+
+  @@map("feature_flags")
+}
+
+model FlagAudit {
+  id            String      @id @default(cuid())
+  flagId        String
+  flag          FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  action        String // Ex: "CREATED", "TOGGLED_ENV", "UPDATED_ROLLOUT", "MODIFIED"
+  environment   String? // Ex: "dev", "staging", "prod"  
+  previousValue String?     @db.Text
+  newValue      String?     @db.Text
+  userId        String?
+  userName      String?
+  createdAt     DateTime    @default(now())
+
+  @@index([flagId])
+  @@map("flag_audit_logs")
+}
+
+model Objective {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  quarter          String
+  status           String   @default("on_track")
+  
+  // -- UI Presentation Fields --
+  owner            String?
+  owner_initials   String?
+  owner_avatar_color String?
+
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+  
+  key_results      KeyResult[]
+  epics            Epic[]
+
+  @@map("objectives")
+}
+
+model KeyResult {
+  id               String   @id @default(cuid())
+  title            String
+  objective_id     String
+  objective        Objective @relation(fields: [objective_id], references: [id], onDelete: Cascade)
+  
+  target_value     Float
+  current_value    Float    @default(0)
+  unit             String   @default("%")
+  status           String   @default("on_track")
+  
+  // -- UI Fields --
+  dashboard_metric String?
+  linked_value     String?
+  trend_up         Boolean  @default(true)
+  owner            String?
+
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  checkins         Checkin[]
+
+  @@map("key_results")
+}
+
+model Checkin {
+  id               String   @id @default(cuid())
+  key_result_id    String
+  key_result       KeyResult @relation(fields: [key_result_id], references: [id], onDelete: Cascade)
+  value            Float
+  note             String?
+  created_at       DateTime @default(now())
+
+  @@map("checkins")
+}
+
+
+model Epic {
+  id          String        @id @default(cuid())
+  title       String        @default("Epic")
+  description String?
+  status      RoadmapStatus @default(BACKLOG)
+  priority    String        @default("MEDIUM")
+  startDate   DateTime?
+  endDate     DateTime?
+  startMonth  String?
+  endMonth    String?
+  
+  // -- UI Customization Fields --
+  stream      String?
+  color       String?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+
+  // Foreign Keys
+  okrId String?
+  okr   Objective?    @relation(fields: [okrId], references: [id], onDelete: SetNull)
+
+  sprints      Sprint[]
+
+  @@map("epics")
+}
+
+// ============================================
+// ANÁLISE & INTELIGÊNCIA
+// ============================================
+
+model Sprint {
+  id            String   @id @default(cuid())
+  number        Int?     @unique
+  name          String?
+  goal          String
+  status        String   @default("PLANNING")
+  startDate     DateTime?
+  endDate       DateTime?
+  retrospective String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  tasks          Task[]
+  sprint_reviews SprintReview?
+
+  epicId String?
+  epic   Epic? @relation(fields: [epicId], references: [id])
+
+  @@map("sprints")
+}
+
+model Adr {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number       Int       @default(autoincrement())
+  title        String
+  status       String    @default("Draft")
+  context      String?
+  decision     String?
+  justification String?
+  alternatives  String?
+  consequences String?
+  category     String    @default("Arquitetura") // Produto, Arquitetura, Estratégia, Processo
+  tags         String[]  @default([])
+  author       String?
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@map("adrs")
+}
+
+model SprintReview {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sprint_id  String    @unique
+  theme      String?
+  blockers   String[]  @default([])
+  learnings  String[]  @default([])
+  highlights Json?     @default("[]")
+  next_theme String?
+  next_items String[]  @default([])
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+
+  sprint     Sprint    @relation(fields: [sprint_id], references: [id], onDelete: Cascade)
+
+  @@map("sprint_reviews")
+}
+
+model Task {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String
+  description    String?
+  status         String    @default("todo")
+  priority       String?   @default("medium")
+  type           String?   @default("task")
+  story_points   Int?      @default(1)
+  epic           String?
+  assignee       String?
+  sprint_id      String?
+  position       Int?      @default(0)
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+
+  sprint         Sprint?   @relation(fields: [sprint_id], references: [id], onDelete: SetNull)
+
+  @@index([sprint_id])
+  @@map("tasks")
+}
+
+model Decision {
+  id           String         @id @default(cuid())
+  title        String
+  status       DecisionStatus @default(PROPOSED)
+  context      String         @db.Text
+  decision     String         @db.Text
+  consequences String         @db.Text
+  date         DateTime       @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("decisions")
+}
+
+model DiscoveryItem {
+  id        String   @id @default(cuid())
+  title     String
+  insight   String   @db.Text
+  source    String? // feedback, research, competitor
+  status    String   @default("NEW") // NEW, VALORIZED, DISCARDED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("discovery_hub")
+}
+
+// ============================================
+// OBSERVABILIDADE
+// ============================================
+
+model Incident {
+  id          String           @id @default(cuid())
+  title       String
+  severity    IncidentSeverity @default(MEDIUM)
+  status      IncidentStatus   @default(REPORTED)
+  description String           @db.Text
+  timeline    Json? // Eventos do incidente
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("incidents")
+}
+
+model Feedback {
+  id         String   @id @default(cuid())
+  rating     Int      @default(0) // 1-5
+  comment    String?  @db.Text
+  userEmail  String?
+  pageSource String?
+  createdAt  DateTime @default(now())
+
+  @@map("feedbacks")
 }

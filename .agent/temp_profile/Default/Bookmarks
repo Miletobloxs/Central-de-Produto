@@ -1,0 +1,69 @@
+{
+   "checksum": "6fe45db1b6a7b0d58aad3da7f3c36c67",
+   "roots": {
+      "bookmark_bar": {
+         "children": [  ],
+         "date_added": "13415510613239797",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Barra de favoritos",
+         "type": "folder"
+      },
+      "other": {
+         "children": [ {
+            "date_added": "13415584140150424",
+            "date_last_used": "13415584192538434",
+            "guid": "f31b90e9-38cf-4f76-9ea5-41a085f528fd",
+            "id": "5",
+            "meta_info": {
+               "power_bookmark_meta": ""
+            },
+            "name": "Faculdade EXAME",
+            "type": "url",
+            "url": "https://exame.com/faculdade/"
+         }, {
+            "date_added": "13415584154714797",
+            "date_last_used": "0",
+            "guid": "70df1f2e-c50b-416f-a488-14facc639992",
+            "id": "6",
+            "meta_info": {
+               "power_bookmark_meta": ""
+            },
+            "name": "Login - Centro Universitário São Camilo",
+            "type": "url",
+            "url": "https://ead.saocamilo-sp.br/d2l/login?target=%2fd2l%2flp%2fouhome%2fhome.d2l%3fou%3d6606&sessionExpired=1"
+         }, {
+            "date_added": "13415584170052171",
+            "date_last_used": "0",
+            "guid": "d215abda-b704-40e2-a424-69b735d5f6b2",
+            "id": "7",
+            "meta_info": {
+               "power_bookmark_meta": ""
+            },
+            "name": "FIAP EAD - Login",
+            "type": "url",
+            "url": "https://on.fiap.com.br/"
+         } ],
+         "date_added": "13415510613239797",
+         "date_last_used": "0",
+         "date_modified": "13415584170052171",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Outros favoritos",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [  ],
+         "date_added": "13415510613239797",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Favoritos nos Dispositivos Móveis",
+         "type": "folder"
+      }
+   },
+   "version": 1
+}

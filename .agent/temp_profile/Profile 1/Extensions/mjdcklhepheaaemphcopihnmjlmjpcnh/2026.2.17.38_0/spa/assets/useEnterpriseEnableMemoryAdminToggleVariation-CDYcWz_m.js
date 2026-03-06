@@ -1,0 +1,2 @@
+import{r as i}from"./vendors-Cf2H4Q9h.js";import{u as s}from"./experimentation-BBKfjDdw.js";const l=(r,a,o)=>{const{value:e,loading:t}=s({flag:"enterprise-enable-memory-admin-toggle",defaultValue:r,extraAttributes:a,subjectType:"user_nextauth_id",shortCircuitCases:o});return i.useMemo(()=>({variation:e,loading:t}),[e,t])};export{l as u};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_spa/assets/useEnterpriseEnableMemoryAdminToggleVariation-CDYcWz_m.js.map

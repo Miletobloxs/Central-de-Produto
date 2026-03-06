@@ -20,12 +20,15 @@ import {
   Flag,
   FileText,
   GitBranch,
+  Users,
 } from "lucide-react";
+import { accessService, Permission } from "@/lib/services/access.service";
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ElementType;
+  requiredPermission?: Permission;
 };
 
 type NavGroup = {
@@ -78,16 +81,15 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Operações",
+    label: "Equipe",
     items: [
-      { href: "/health", label: "Health Score", icon: Activity },
-      { href: "/incidents", label: "Incidents", icon: AlertOctagon },
+      { href: "/equipe/grupos", label: "Grupos e Acesso", icon: Users, requiredPermission: "ORCHESTRATE_PRODUCT" },
     ],
   },
   {
     label: "Sistema",
     items: [
-      { href: "/configuracoes", label: "Configurações", icon: Settings },
+      { href: "/configuracoes", label: "Configurações", icon: Settings, requiredPermission: "ORCHESTRATE_PRODUCT" },
     ],
   },
 ];
@@ -120,36 +122,47 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-4 pt-4 pb-2 overflow-y-auto space-y-4">
-        {navGroups.map((group, gi) => (
-          <div key={gi}>
-            {group.label && (
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-1.5">
-                {group.label}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                        active
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                      }`}
-                    >
-                      <Icon size={15} strokeWidth={active ? 2.5 : 2} />
-                      {item.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        {navGroups.map((group, gi) => {
+          // Filtrar itens do grupo com base nas permissões
+          const visibleItems = group.items.filter(item => {
+            if (!item.requiredPermission) return true;
+            // Mock do usuário atual (será Admin para este exemplo)
+            const mockUser = { role: 'ADMIN' as any };
+            return accessService.can(mockUser, item.requiredPermission);
+          });
+
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={gi}>
+              {group.label && (
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-1.5">
+                  {group.label}
+                </p>
+              )}
+              <ul className="space-y-0.5">
+                {visibleItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${active
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                          }`}
+                      >
+                        <Icon size={15} strokeWidth={active ? 2.5 : 2} />
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
       </nav>
 
       {/* Help Box */}

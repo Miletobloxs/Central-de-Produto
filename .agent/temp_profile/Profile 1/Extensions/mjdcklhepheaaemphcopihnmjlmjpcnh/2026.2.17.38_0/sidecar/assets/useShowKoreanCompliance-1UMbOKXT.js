@@ -1,0 +1,2 @@
+import{b4 as r}from"./index-BaGL3GVE.js";import{u as n}from"./platform-core-C-zYqcOe.js";import{u as t}from"./platform-components-DCQeXWvE.js";function c(){const o=r(),{session:e}=n(),{env:{isProduction:s}}=t();return s?o==="KR":(e?.user?.email??"").includes("+korea@")}export{c as u};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_sidecar/assets/useShowKoreanCompliance-1UMbOKXT.js.map

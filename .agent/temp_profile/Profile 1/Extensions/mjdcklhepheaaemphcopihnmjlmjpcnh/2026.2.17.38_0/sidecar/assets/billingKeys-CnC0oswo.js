@@ -1,0 +1,2 @@
+import{Q as e}from"./react-query-Cnh9NnNQ.js";const t=()=>e.makeQueryKey("/rest/stripe/upgrade-subscription-preview"),i=()=>e.makeQueryKey("/rest/stripe/subscription-changes"),s=()=>e.makeQueryKey("/rest/billing/braintree/subscription-details");e.makeQueryKey("/rest/billing/personalization/status");const a=()=>e.makeQueryKey("/rest/billing/braintree/paypal/client-token",{}),n=()=>e.makeQueryKey("/rest/billing/credits");export{i as a,n as b,t as c,a as d,s as g};
+//# sourceMappingURL=https://pplx-static-sourcemaps.perplexity.ai/_sidecar/assets/billingKeys-CnC0oswo.js.map
