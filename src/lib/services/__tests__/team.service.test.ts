@@ -14,6 +14,12 @@ vi.mock('@/lib/prisma', () => ({
             update: vi.fn(),
             delete: vi.fn(),
         },
+        userInvite: {
+            create: vi.fn(),
+            findUnique: vi.fn(),
+            findMany: vi.fn(),
+            update: vi.fn(),
+        }
     },
 }));
 
@@ -100,6 +106,85 @@ describe('TeamService - Group Management', () => {
             expect(prisma.user.delete).toHaveBeenCalledWith({
                 where: { id: userId },
             });
+        });
+    });
+
+    describe('Invite Management', () => {
+        it('deve criar um convite com expiração de 24h e token único', async () => {
+            const inviteData = {
+                email: 'novo@bloxs.com.br',
+                role: 'DEVELOPER' as any,
+                groupId: 'group-1'
+            };
+
+            const mockInvite = {
+                id: 'invite-1',
+                ...inviteData,
+                token: 'random-token',
+                status: 'PENDENTE',
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+            };
+
+            (prisma.userInvite.create as any).mockResolvedValue(mockInvite);
+
+            const result = await (teamService as any).createInvite(inviteData);
+
+            expect(prisma.userInvite.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({
+                    email: inviteData.email,
+                    role: inviteData.role,
+                    groupId: inviteData.groupId,
+                    token: expect.any(String),
+                    expiresAt: expect.any(Date)
+                })
+            }));
+            expect(result.token).toBeDefined();
+        });
+
+        it('deve listar apenas convites pendentes', async () => {
+            const mockInvites = [
+                { id: '1', status: 'PENDENTE', email: 'a@b.com' },
+                { id: '2', status: 'PENDENTE', email: 'c@d.com' }
+            ];
+            (prisma.userInvite.findMany as any).mockResolvedValue(mockInvites);
+
+            const result = await (teamService as any).listPendingInvites();
+
+            expect(prisma.userInvite.findMany).toHaveBeenCalledWith({
+                where: { status: 'PENDENTE' },
+                orderBy: { createdAt: 'desc' }
+            });
+            expect(result).toHaveLength(2);
+        });
+
+        it('deve validar um convite ativo e não expirado', async () => {
+            const token = 'valid-token';
+            const mockInvite = {
+                id: '1',
+                token,
+                status: 'PENDENTE',
+                expiresAt: new Date(Date.now() + 10000)
+            };
+            (prisma.userInvite.findUnique as any).mockResolvedValue(mockInvite);
+
+            const result = await (teamService as any).validateInvite(token);
+
+            expect(result).toEqual(mockInvite);
+        });
+
+        it('deve retornar null para convites expirados', async () => {
+            const token = 'expired-token';
+            const mockInvite = {
+                id: '1',
+                token,
+                status: 'PENDENTE',
+                expiresAt: new Date(Date.now() - 10000)
+            };
+            (prisma.userInvite.findUnique as any).mockResolvedValue(mockInvite);
+
+            const result = await (teamService as any).validateInvite(token);
+
+            expect(result).toBeNull();
         });
     });
 });

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Shield, Users, Plug, Globe, Save, Check, Plus, MoreVertical, Settings2, Loader2, CheckCircle2, Trash2, UserPlus, UserCog } from "lucide-react";
-import { getGroupsAction, createGroupAction, updateGroupAction, deleteGroupAction, getUsersAction, updateUserAction, deleteUserAction } from "@/lib/actions/team.actions";
+import { Bell, Shield, Users, Plug, Globe, Save, Check, Plus, MoreVertical, Settings2, Loader2, CheckCircle2, Trash2, UserPlus, UserCog, Clock, Copy, Mail } from "lucide-react";
+import { getGroupsAction, createGroupAction, updateGroupAction, deleteGroupAction, getUsersAction, updateUserAction, deleteUserAction, getPendingInvitesAction } from "@/lib/actions/team.actions";
+import { InviteModal } from "./InviteModal";
 import type { Permission } from "@/lib/services/access.service";
 import { UserRole } from "@prisma/client";
 
@@ -84,16 +85,20 @@ export default function ConfiguracoesPage() {
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.INVESTIDOR);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [groupsData, usersData] = await Promise.all([
+      const [groupsData, usersData, invitesData] = await Promise.all([
         getGroupsAction(),
-        getUsersAction()
+        getUsersAction(),
+        getPendingInvitesAction()
       ]);
       setGroups(groupsData);
       setUsers(usersData);
+      setPendingInvites(invitesData);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -412,59 +417,119 @@ export default function ConfiguracoesPage() {
               </div>
 
               {activeSubTab === "colaboradores" ? (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-sm font-bold text-gray-900">Membros da Equipe</h2>
-                    <button className="flex items-center gap-2 text-xs font-semibold text-white bg-blue-600 rounded-xl px-3.5 py-2 hover:bg-blue-700 transition-colors">
-                      <Plus size={12} />
-                      Convidar membro
-                    </button>
+                <>
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Membros da Equipe</h3>
+                        <p className="text-sm text-gray-500">Colaboradores ativos na plataforma.</p>
+                      </div>
+                      <button
+                        onClick={() => setIsInviteModalOpen(true)}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
+                      >
+                        <UserPlus size={18} />
+                        Convidar membro
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-gray-50">
+                      {users.map((member) => {
+                        const initials = member.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || '??';
+                        return (
+                          <div key={member.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors group">
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold bg-blue-100 text-blue-700 shrink-0">
+                              {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">{member.name}</p>
+                              <p className="text-xs text-gray-500">{member.email}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                                {ROLE_LABELS[member.role as UserRole] || member.role}
+                              </span>
+                              <span className="text-[9px] text-gray-400 italic">
+                                {ROLE_HINTS[member.role as UserRole]}
+                              </span>
+                              <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full mt-1">
+                                {groups.find(g => g.id === member.groupId)?.name || "Sem Grupo"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => openUserModal(member)}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                title="Editar Colaborador"
+                              >
+                                <UserCog size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(member.id)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Excluir Colaborador"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="divide-y divide-gray-50">
-                    {users.map((member) => {
-                      const initials = member.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || '??';
-                      return (
-                        <div key={member.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors group">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold bg-blue-100 text-blue-700 shrink-0">
-                            {initials}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800">{member.name}</p>
-                            <p className="text-xs text-gray-500">{member.email}</p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                              {ROLE_LABELS[member.role as UserRole] || member.role}
-                            </span>
-                            <span className="text-[9px] text-gray-400 italic">
-                              {ROLE_HINTS[member.role as UserRole]}
-                            </span>
-                            <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full mt-1">
-                              {groups.find(g => g.id === member.groupId)?.name || "Sem Grupo"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => openUserModal(member)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                              title="Editar Colaborador"
-                            >
-                              <UserCog size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(member.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              title="Excluir Colaborador"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+                  {/* Convites Pendentes */}
+                  {pendingInvites.length > 0 && (
+                    <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+                      <div className="p-8 border-b border-gray-100 bg-amber-50/30">
+                        <div className="flex items-center gap-2">
+                          <Clock className="text-amber-600" size={18} />
+                          <h3 className="text-lg font-bold text-gray-900">Convites Pendentes</h3>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                        <p className="text-sm text-gray-500 mt-1">Aguardando resgate pelos colaboradores (expira em 24h).</p>
+                      </div>
+
+                      <ul className="divide-y divide-gray-50">
+                        {pendingInvites.map((invite) => (
+                          <li key={invite.id} className="p-6 hover:bg-gray-50/50 transition-colors group">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                                  <Mail className="text-amber-600" size={18} />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-gray-900">{invite.email}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold uppercase tracking-tight">
+                                      {ROLE_LABELS[invite.role as UserRole]}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400">•</span>
+                                    <span className="text-[10px] text-gray-400 font-medium">
+                                      Enviado em: {new Date(invite.createdAt).toLocaleString('pt-BR')}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    const link = `${window.location.origin}/invite?token=${invite.token}`;
+                                    navigator.clipboard.writeText(link);
+                                    alert("Link copiado!");
+                                  }}
+                                  className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+                                >
+                                  <Copy size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -747,6 +812,18 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       )}
+
+      <InviteModal
+        isOpen={isInviteModalOpen}
+        onClose={() => {
+          setIsInviteModalOpen(false);
+          fetchData();
+        }}
+        groups={groups}
+        internalRoles={Object.fromEntries(
+          Object.entries(ROLE_LABELS).filter(([role]) => MANAGEABLE_ROLES.includes(role as UserRole))
+        ) as Record<string, string>}
+      />
     </div>
   );
 }

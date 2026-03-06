@@ -48,3 +48,13 @@ export async function deleteUserAction(id: string) {
     revalidatePath("/configuracoes");
     return result;
 }
+
+export async function createInviteAction(data: { email: string; role: UserRole; groupId?: string | null }) {
+    const invite = await teamService.createInvite(data);
+    revalidatePath("/configuracoes");
+    return invite;
+}
+
+export async function getPendingInvitesAction() {
+    return await teamService.listPendingInvites();
+}

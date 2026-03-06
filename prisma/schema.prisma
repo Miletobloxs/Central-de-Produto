@@ -153,6 +153,26 @@ model User {
   @@map("users")
 }
 
+enum InviteStatus {
+  PENDENTE
+  ACEITO
+  EXPIRADO
+}
+
+model UserInvite {
+  id        String       @id @default(cuid())
+  email     String
+  role      UserRole     @default(BLOXXS_TEAM)
+  groupId   String?
+  token     String       @unique
+  status    InviteStatus @default(PENDENTE)
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("user_invites")
+}
+
 // ============================================
 // OFERTAS
 // ============================================
