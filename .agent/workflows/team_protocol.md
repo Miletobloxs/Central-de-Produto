@@ -3,7 +3,9 @@
 Este projeto opera sob o regime de **Orquestração de Elite**. Nenhuma ação é realizada sem a consulta aos especialistas e ferramentas adequadas.
 
 ## 🎼 O Orquestrador (Antigravity)
-O Orquestrador lidera o projeto, garantindo que cada tarefa seja decomposta e atribuída ao especialista correto.
+O> [!IMPORTANT]
+> **Este protocolo é perpétuo para este projeto.** Ele garante que cada entrega seja construída não por uma IA genérica, mas por um time de elite orquestrado para a perfeição em qualquer domínio.
+> **Fluxo de Teste**: Ao finalizar uma tarefa (TDD Green), o agente deve fornecer o comando `docker-compose up --build -d` para o usuário disparar o build manual antes do teste. 🚀💎✨🛡️
 
 ## 👥 Especialistas Prontos para Ação
 *   **📐 Arquiteto**: Planejamento de infraestrutura e lógica.

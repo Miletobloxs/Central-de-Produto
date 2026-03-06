@@ -14,6 +14,12 @@ export async function createGroupAction(data: { name: string; description: strin
     return group;
 }
 
+export async function updateGroupAction(id: string, data: { name?: string; description?: string; permissions?: Permission[] }) {
+    const group = await teamService.updateGroup(id, data);
+    revalidatePath("/equipe/grupos");
+    return group;
+}
+
 export async function getUsersAction() {
     return await teamService.listUsers();
 }
