@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Permission } from "./access.service";
 import { UserRole, InviteStatus } from "@prisma/client";
 import crypto from "crypto";
+import { mailService } from "./mail.service";
 
 export interface TeamGroup {
     id: string;
@@ -12,6 +13,18 @@ export interface TeamGroup {
         users: number;
     };
 }
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+    [UserRole.SUPER_ADMIN]: "Super Admin",
+    [UserRole.ADMIN]: "Administrador",
+    [UserRole.BOARD]: "Conselho (Board)",
+    [UserRole.DEVELOPER]: "Desenvolvedor",
+    [UserRole.BLOXXS_TEAM]: "Membro Bloxs",
+    [UserRole.ORIGINADOR]: "Originador",
+    [UserRole.DISTRIBUIDOR]: "Distribuidor",
+    [UserRole.ASSESSOR]: "Assessor",
+    [UserRole.INVESTIDOR]: "Investidor",
+};
 
 export class TeamService {
     /**
@@ -107,21 +120,36 @@ export class TeamService {
     }
 
     /**
-     * Gera um novo convite para colaborador.
+     * Gera um novo convite para colaborador e envia por e-mail.
      */
-    async createInvite(data: { email: string; role: UserRole; groupId?: string | null }) {
+    async createInvite(data: { email: string; role: UserRole; groupId?: string | null; baseUrl?: string }) {
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24); // Expiração de 24h
 
-        return await (prisma as any).userInvite.create({
+        const { baseUrl, ...dbData } = data;
+
+        const invite = await (prisma as any).userInvite.create({
             data: {
-                ...data,
+                ...dbData,
                 token,
                 expiresAt,
                 status: InviteStatus.PENDENTE,
             },
         });
+
+        // Enviar e-mail se baseUrl for fornecido
+        if (baseUrl) {
+            try {
+                const inviteLink = `${baseUrl}/invite?token=${token}`;
+                const roleLabel = ROLE_LABELS[data.role] || data.role;
+                await mailService.sendInviteEmail(data.email, inviteLink, roleLabel);
+            } catch (error) {
+                console.error("Erro ao enviar e-mail de convite:", error);
+            }
+        }
+
+        return invite;
     }
 
     /**
@@ -146,13 +174,20 @@ export class TeamService {
 
         if (!invite) return null;
 
-        // Verificar status e expiração
         if (invite.status !== InviteStatus.PENDENTE || new Date() > invite.expiresAt) {
-            // Opcional: Marcar como expirado no banco se necessário
             return null;
         }
 
         return invite;
+    }
+
+    /**
+     * Exclui um convite pendente.
+     */
+    async deleteInvite(id: string) {
+        return await (prisma as any).userInvite.delete({
+            where: { id },
+        });
     }
 }
 
