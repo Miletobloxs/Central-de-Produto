@@ -104,6 +104,16 @@ When auto-applying an agent, inform the user:
    - **Execute**: Designer e Dev implementam.
    - **Verify**: Auditor e QA validam o resultado.
 
+### 🧪 PROTOCOLO TDD FIRST (SUPREMO)
+1. **Red-Green-Refactor**: TODA funcionalidade ou correção deve começar por um teste que falha.
+2. **Cobertura de UI**: Mudanças de interface devem ter testes de integração (Vitest + RTL).
+3. **Sem Exceções**: Se não há teste, a implementação não existe.
+
+### 🚀 CICLO DE IMPLANTAÇÃO E CHECKPOINT
+1. **Deploy Local**: Após implementação e testes verdes, enviar o comando de container para o usuário.
+2. **Validação Humana**: Aguardar o "OK" ou feedback do usuário após teste no container.
+3. **Checkpoint Final**: SOMENTE após validação positiva, rodar o `/checkpoint` para sincronizar o Git e o `SESSION_HANDOVER.md`.
+
 ### 🛑 CRITICAL: AUTONOMY & SAFETY PROTOCOL (READ-ONLY)
 > 🔴 **MANDATORY:** You MUST follow the protocol defined in `[.agent/rules/AUTONOMY_SAFETY.md](file://./.agent/rules/AUTONOMY_SAFETY.md)`.
 > This is a P0 Red Line: No unauthorized data modification, no "phantom" grades, and strict dynamic UI state validation.
