@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import SupportFAB from "@/components/layout/SupportFAB";
 
 export default async function AppLayout({
   children,
@@ -36,6 +37,7 @@ export default async function AppLayout({
       <div className="flex flex-1 flex-col min-w-0">
         <Header displayName={displayName} initials={initials} email={user.email ?? ""} />
         <main className="flex-1 overflow-y-auto">{children}</main>
+        <SupportFAB />
       </div>
     </div>
   );
