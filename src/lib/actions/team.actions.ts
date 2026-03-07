@@ -51,9 +51,13 @@ export async function deleteUserAction(id: string) {
 
 export async function createInviteAction(data: { email: string; role: UserRole; groupId?: string | null }) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const invite = await teamService.createInvite({ ...data, baseUrl });
+    const result = await teamService.createInvite({ ...data, baseUrl });
     revalidatePath("/configuracoes");
-    return invite;
+    return result;
+}
+
+export async function getInvitesAction() {
+    return await teamService.listAllInvites();
 }
 
 export async function getPendingInvitesAction() {
