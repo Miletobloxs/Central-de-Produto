@@ -44,6 +44,8 @@ const environments: { id: Environment; label: string }[] = [
 ];
 
 import { createFlagAction, updateRolloutAction, toggleFlagAction, getFlagsAction } from "@/lib/actions/flags.actions";
+import { getCurrentUserAction } from "@/lib/actions/auth.actions";
+import { accessService, UserAccessInfo } from "@/lib/services/access.service";
 
 /* ─── NewFlagModal ────────────────────────────────────────────────── */
 function NewFlagModal({
@@ -245,6 +247,12 @@ export default function FeatureFlagsPage() {
   const [search, setSearch] = useState("");
   const [toggling, setToggling] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [user, setUser] = useState<UserAccessInfo | null>(null);
+
+  const canManage = useMemo(() => {
+    if (!user) return false;
+    return accessService.can(user, 'MANAGE_FLAGS');
+  }, [user]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -263,7 +271,10 @@ export default function FeatureFlagsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { 
+    fetchAll(); 
+    getCurrentUserAction().then(setUser);
+  }, [fetchAll]);
 
   const epicMap = useMemo(
     () => Object.fromEntries(epics.map((e) => [e.id, e])),
@@ -348,13 +359,15 @@ export default function FeatureFlagsPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2.5 hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={14} />
-            Nova Flag
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2.5 hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={14} />
+              Nova Flag
+            </button>
+          )}
         </div>
       </div>
 
@@ -429,9 +442,8 @@ export default function FeatureFlagsPage() {
                     <div className="shrink-0 mt-0.5">
                       <button
                         onClick={() => toggleFlag(flag)}
-                        disabled={isToggling}
-                        className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${flag.active ? "bg-emerald-500" : "bg-gray-200"
-                          }`}
+                        disabled={isToggling || !canManage}
+                        className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${flag.active ? "bg-emerald-500" : "bg-gray-200"} ${!canManage ? "cursor-not-allowed opacity-60" : ""}`}
                       >
                         {isToggling ? (
                           <Loader2

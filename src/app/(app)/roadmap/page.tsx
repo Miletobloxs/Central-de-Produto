@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, X, Loader2, Layers } from "lucide-react";
 import type { Sprint } from "@/types/product";
+import { getCurrentUserAction } from "@/lib/actions/auth.actions";
+import { accessService, UserAccessInfo } from "@/lib/services/access.service";
+import { createEpicAction, linkSprintsToEpicAction, getEpicsAction } from "@/lib/actions/roadmap.actions";
 
 // ─── Local types ──────────────────────────────────────────────
 type EpicStatus = "planned" | "in_progress" | "completed" | "delayed";
@@ -134,8 +137,6 @@ const INIT_FORM = {
   start_date: "",
   end_date: "",
 };
-
-import { createEpicAction, linkSprintsToEpicAction, getEpicsAction } from "@/lib/actions/roadmap.actions";
 
 function EpicModal({
   allSprints,
@@ -392,6 +393,12 @@ export default function RoadmapPage() {
   const [allSprints, setAllSprints] = useState<Sprint[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [user, setUser] = useState<UserAccessInfo | null>(null);
+
+  const canManage = useMemo(() => {
+    if (!user) return false;
+    return accessService.can(user, 'MANAGE_ROADMAP');
+  }, [user]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -411,7 +418,10 @@ export default function RoadmapPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { 
+    fetchData(); 
+    getCurrentUserAction().then(setUser);
+  }, [fetchData]);
 
   const { months, quarters, timelineStart, totalMonths } = useMemo(
     () => buildTimeline(epics),
@@ -457,13 +467,15 @@ export default function RoadmapPage() {
           <span className="text-sm font-bold text-gray-900">Roadmap do Produto</span>
           <span className="text-xs text-gray-400 ml-1">· Visão trimestral por épicos</span>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2 hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={14} />
-          Novo Épico
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2 hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={14} />
+            Novo Épico
+          </button>
+        )}
       </div>
 
       <div className="p-6 space-y-5">
@@ -576,13 +588,15 @@ export default function RoadmapPage() {
                   Épicos agrupam sprints em iniciativas maiores do roadmap
                 </p>
               </div>
-              <button
-                onClick={() => setShowModal(true)}
-                className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2.5 hover:bg-blue-700 transition-colors"
-              >
-                <Plus size={14} />
-                Criar primeiro épico
-              </button>
+              {canManage && (
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 rounded-xl px-4 py-2.5 hover:bg-blue-700 transition-colors"
+                >
+                  <Plus size={14} />
+                  Criar primeiro épico
+                </button>
+              )}
             </div>
           ) : (
             <div className="divide-y divide-gray-50">

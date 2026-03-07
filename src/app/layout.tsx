@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "Gestão operacional da área de produto da Bloxs Investimentos",
 };
 
+import { Toaster } from "sonner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,6 +28,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   );

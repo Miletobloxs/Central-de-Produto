@@ -13,21 +13,24 @@ import {
 import { UserRole } from "@prisma/client";
 import { createInviteAction } from "@/lib/actions/team.actions";
 import { TeamGroup } from "@/lib/services/team.service";
+import { toast } from "sonner";
 
 interface InviteModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSuccess?: () => void;
     groups: TeamGroup[];
     internalRoles: Record<string, string>;
 }
 
-export function InviteModal({ isOpen, onClose, groups, internalRoles }: InviteModalProps) {
+export function InviteModal({ isOpen, onClose, onSuccess, groups, internalRoles }: InviteModalProps) {
     const [email, setEmail] = useState("");
     const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.BLOXXS_TEAM);
     const [selectedGroupId, setSelectedGroupId] = useState<string>("");
     const [isLoading, setIsLoading] = useState(false);
     const [inviteLink, setInviteLink] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [emailSent, setEmailSent] = useState<boolean | null>(null);
 
     if (!isOpen) return null;
 
@@ -35,7 +38,7 @@ export function InviteModal({ isOpen, onClose, groups, internalRoles }: InviteMo
         e.preventDefault();
         setIsLoading(true);
         try {
-            const invite = await createInviteAction({
+            const { invite, emailSent: sent } = await createInviteAction({
                 email,
                 role: selectedRole,
                 groupId: selectedGroupId || null,
@@ -43,9 +46,16 @@ export function InviteModal({ isOpen, onClose, groups, internalRoles }: InviteMo
 
             const baseUrl = window.location.origin;
             setInviteLink(`${baseUrl}/invite?token=${invite.token}`);
+            setEmailSent(sent);
+
+            if (sent) {
+                toast.success("Convite gerado e enviado por e-mail!");
+            } else {
+                toast.warning("Convite gerado, mas o e-mail não pôde ser enviado. Compartilhe o link manualmente.");
+            }
+            onSuccess?.(); // Trigger refresh in parent
         } catch (error) {
-            console.error("Erro ao convidar:", error);
-            alert("Erro ao gerar convite.");
+            toast.error("Erro ao gerar link de convite.");
         } finally {
             setIsLoading(false);
         }
@@ -55,6 +65,7 @@ export function InviteModal({ isOpen, onClose, groups, internalRoles }: InviteMo
         if (inviteLink) {
             navigator.clipboard.writeText(inviteLink);
             setCopied(true);
+            toast.success("Link copiado!");
             setTimeout(() => setCopied(false), 2000);
         }
     };

@@ -7,12 +7,14 @@ export type Permission =
     | 'MOVE_CARDS'         // Admin / Dev
     | 'VIEW_TASKS'         // Todos internos
     | 'VIEW_REPORTS'       // Admin / Board / Super Admin
-    | 'PARTICIPATE_REVIEWS'; // Internos
+    | 'PARTICIPATE_REVIEWS' // Internos
+    | 'MANAGE_FLAGS'       // Super Admin / Admin
+    | 'MANAGE_ROADMAP';    // Super Admin / Admin
 
 export interface UserAccessInfo {
     role: Role;
     group?: {
-        permissions: Permission[];
+        permissions: string[];
     };
 }
 
@@ -33,10 +35,16 @@ export class AccessService {
             return boardPermissions.includes(permission);
         }
 
-        // 3. DEVELOPER: Acesso Técnico à Execução
+        // 3. DEVELOPER: Acesso Técnico à Execução (Write only via Group Overlay)
         if (user.role === 'DEVELOPER') {
+            // Desenvolvedores podem ver tarefas e participar de reviews por padrão
             const devPermissions: Permission[] = ['CREATE_TASK', 'MOVE_CARDS', 'VIEW_TASKS', 'PARTICIPATE_REVIEWS'];
-            return devPermissions.includes(permission);
+            if (devPermissions.includes(permission)) return true;
+            
+            // Verificas permissões extras concedidas via grupo
+            if (user.group?.permissions) {
+                return user.group.permissions.includes(permission);
+            }
         }
 
         // 4. BLOXXS_TEAM: Acesso Dinâmico via Grupos (Capability Overlay)

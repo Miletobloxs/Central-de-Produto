@@ -138,18 +138,21 @@ export class TeamService {
             },
         });
 
+        let emailSent = false;
+
         // Enviar e-mail se baseUrl for fornecido
         if (baseUrl) {
             try {
                 const inviteLink = `${baseUrl}/invite?token=${token}`;
                 const roleLabel = ROLE_LABELS[data.role] || data.role;
-                await mailService.sendInviteEmail(data.email, inviteLink, roleLabel);
+                emailSent = await mailService.sendInviteEmail(data.email, inviteLink, roleLabel);
             } catch (error) {
                 console.error("Erro ao enviar e-mail de convite:", error);
+                emailSent = false;
             }
         }
 
-        return invite;
+        return { invite, emailSent };
     }
 
     /**
@@ -159,7 +162,17 @@ export class TeamService {
         return await (prisma as any).userInvite.findMany({
             where: {
                 status: InviteStatus.PENDENTE,
+                expiresAt: { gt: new Date() }
             },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    /**
+     * Lista TODOS os convites para histórico.
+     */
+    async listAllInvites() {
+        return await (prisma as any).userInvite.findMany({
             orderBy: { createdAt: 'desc' },
         });
     }

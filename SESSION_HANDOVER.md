@@ -1,15 +1,15 @@
 # SESSION_HANDOVER.md 🤝💎
 
-**Data/Hora:** 2026-03-06 19:05 (GMT-3)
+**Data/Hora:** 2026-03-06 23:45 (GMT-3)
 
 ## 🚀 A Grande Refatoração
-Consolidamos com sucesso o **Onboarding Automático**. Superamos o desafio de repasse de variáveis de ambiente para o Docker, garantindo que o `MailService` dispare e-mails reais com Magic Links seguros. Implementamos também a gestão de convites pendentes com capacidade de exclusão (Super Admin), permitindo ciclos de teste limpos e seguros. O sistema agora opera com um fluxo de convite profissional e blindado.
+Implementamos a **Blindagem de Segurança Pro Max (RBAC)** nas páginas de Produto (Flags e Roadmap). Criamos um utilitário de sessão robusto em `src/lib/auth.ts` que valida permissões diretamente no servidor e protegemos todas as Server Actions vulneráveis. Além disso, estruturamos o **Diagnóstico de E-mail** com logs detalhados e um script de teste standalone (`test-email.ts`), identificando que o erro SMTP 535 reside na necessidade de uma Senha de Aplicativo do Google.
 
 ## 🎯 Estado da Arte
-A governança de equipe está completa. O sistema é capaz de gerar convites vinculados a e-mails e cargos específicos, enviá-los via SMTP e gerenciar o ciclo de vida desses convites (expiração/exclusão). O Docker Compose está devidamente configurado para orquestrar as chaves de e-mail e as credenciais de banco de dados.
+O sistema opera sob **Governança Estrita**: cargos de DEVs e BOARD agora são Read-only por padrão em áreas sensíveis, exigindo Grupos de Permissão para escalonamento. A infraestrutura de Onboarding está pronta para o "Go Live" assim que o André Mileto fornecer as credenciais SMTP corrigidas.
 
 ## ⏭️ Próximo Passo Herdado
-Substituir alertas nativos (`alert`, `confirm`) por componentes de feedback premium integrados ao Design System (Toasts ou Modais customizados) e avançar para a **Fase 3: Módulos de Produto**.
+Atualizar o arquivo `.env` com a **Senha de Aplicativo (16 caracteres)** do André Mileto, rodar o script de diagnóstico `npm run test:email` (ou via ts-node) e confirmar o disparo real dos convites de onboarding.
 
 ---
 > [!IMPORTANT]

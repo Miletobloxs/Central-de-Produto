@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Bell, Shield, Users, Plug, Globe, Save, Check, Plus, MoreVertical, Settings2, Loader2, CheckCircle2, Trash2, UserPlus, UserCog, Clock, Copy, Mail } from "lucide-react";
-import { getGroupsAction, createGroupAction, updateGroupAction, deleteGroupAction, getUsersAction, updateUserAction, deleteUserAction, getPendingInvitesAction, deleteInviteAction } from "@/lib/actions/team.actions";
+import { getGroupsAction, createGroupAction, updateGroupAction, deleteGroupAction, getUsersAction, updateUserAction, deleteUserAction, getPendingInvitesAction, deleteInviteAction, getInvitesAction } from "@/lib/actions/team.actions";
 import { InviteModal } from "./InviteModal";
+import { ConfirmationModal } from "./ConfirmationModal";
+import { toast } from "sonner";
 import type { Permission } from "@/lib/services/access.service";
 import { UserRole } from "@prisma/client";
 
@@ -88,17 +90,33 @@ export default function ConfiguracoesPage() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
 
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => Promise<void>;
+    type: "info" | "warning" | "danger" | "success";
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    onConfirm: async () => {},
+    type: "info",
+  });
+
   const fetchData = async () => {
     setLoading(true);
     try {
       const [groupsData, usersData, invitesData] = await Promise.all([
         getGroupsAction(),
         getUsersAction(),
-        getPendingInvitesAction()
+        getInvitesAction()
       ]);
       setGroups(groupsData);
       setUsers(usersData);
-      setPendingInvites(invitesData);
+      setPendingInvites(invitesData); 
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -138,17 +156,31 @@ export default function ConfiguracoesPage() {
     }
   };
 
-  const handleDeleteGroup = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este grupo? Usuários vinculados ficarão sem grupo.")) return;
-    setIsSubmitting(true);
-    try {
-      await deleteGroupAction(id);
-      fetchData();
-    } catch (error) {
-      console.error("Failed to delete group:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleDeleteGroup = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Excluir Grupo?",
+      description: "Tem certeza que deseja excluir este grupo? Usuários vinculados ficarão sem grupo e perderão as permissões associadas.",
+      type: "danger",
+      confirmText: "Excluir Grupo",
+      onConfirm: async () => {
+        // Optimistic update
+        setGroups(prev => prev.filter(g => g.id !== id));
+        
+        setIsSubmitting(true);
+        try {
+          await deleteGroupAction(id);
+          toast.success("Grupo excluído com sucesso!");
+          fetchData();
+        } catch (error) {
+          toast.error("Erro ao excluir grupo.");
+          fetchData(); // Rollback
+        } finally {
+          setIsSubmitting(false);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
   const handleSaveUser = async () => {
@@ -168,30 +200,58 @@ export default function ConfiguracoesPage() {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (!confirm("Atenção: A exclusão do usuário é permanente. Continuar?")) return;
-    setIsSubmitting(true);
-    try {
-      await deleteUserAction(id);
-      fetchData();
-    } catch (error) {
-      console.error("Failed to delete user:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleDeleteUser = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Remover Colaborador?",
+      description: "Atenção: A exclusão do usuário é permanente. Ele perderá acesso imediato à plataforma.",
+      type: "danger",
+      confirmText: "Remover Acesso",
+      onConfirm: async () => {
+        // Optimistic update
+        setUsers(prev => prev.filter(u => u.id !== id));
+
+        setIsSubmitting(true);
+        try {
+          await deleteUserAction(id);
+          toast.success("Colaborador removido.");
+          fetchData();
+        } catch (error) {
+          toast.error("Erro ao remover colaborador.");
+          fetchData(); // Rollback
+        } finally {
+          setIsSubmitting(false);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
-  const handleDeleteInvite = async (id: string) => {
-    if (!confirm("Tem certeza que deseja cancelar este convite? O link enviado deixará de funcionar.")) return;
-    setIsSubmitting(true);
-    try {
-      await deleteInviteAction(id);
-      fetchData();
-    } catch (error) {
-      console.error("Failed to delete invite:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleDeleteInvite = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Cancelar Convite?",
+      description: "O link de convite enviado por e-mail deixará de funcionar imediatamente.",
+      type: "warning",
+      confirmText: "Cancelar Convite",
+      onConfirm: async () => {
+        // Optimistic update
+        setPendingInvites(prev => prev.filter(inv => inv.id !== id));
+
+        setIsSubmitting(true);
+        try {
+          await deleteInviteAction(id);
+          toast.success("Convite cancelado.");
+          fetchData();
+        } catch (error) {
+          toast.error("Erro ao cancelar convite.");
+          fetchData(); // Rollback
+        } finally {
+          setIsSubmitting(false);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
   const openGroupModal = (group?: any) => {
@@ -239,6 +299,7 @@ export default function ConfiguracoesPage() {
 
   const handleSave = () => {
     setSaved(true);
+    toast.success("Configurações gerais salvas!");
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -491,62 +552,83 @@ export default function ConfiguracoesPage() {
                     </div>
                   </div>
 
-                  {/* Convites Pendentes */}
+                  {/* Convites e Histórico */}
                   {pendingInvites.length > 0 && (
                     <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-                      <div className="p-8 border-b border-gray-100 bg-amber-50/30">
+                      <div className="p-8 border-b border-gray-100 bg-slate-50/50">
                         <div className="flex items-center gap-2">
-                          <Clock className="text-amber-600" size={18} />
-                          <h3 className="text-lg font-bold text-gray-900">Convites Pendentes</h3>
+                          <Mail className="text-slate-600" size={18} />
+                          <h3 className="text-lg font-bold text-gray-900">Gestão de Convites</h3>
                         </div>
-                        <p className="text-sm text-gray-500 mt-1">Aguardando resgate pelos colaboradores (expira em 24h).</p>
+                        <p className="text-sm text-gray-500 mt-1">Acompanhe o status de ativação e o histórico de e-mails enviados.</p>
                       </div>
 
                       <ul className="divide-y divide-gray-50">
-                        {pendingInvites.map((invite) => (
-                          <li key={invite.id} className="p-6 hover:bg-gray-50/50 transition-colors group">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                                  <Mail className="text-amber-600" size={18} />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-bold text-gray-900">{invite.email}</p>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold uppercase tracking-tight">
-                                      {ROLE_LABELS[invite.role as UserRole]}
-                                    </span>
-                                    <span className="text-[10px] text-gray-400">•</span>
-                                    <span className="text-[10px] text-gray-400 font-medium">
-                                      Enviado em: {new Date(invite.createdAt).toLocaleString('pt-BR')}
-                                    </span>
+                        {pendingInvites.map((invite) => {
+                          const isExpired = new Date(invite.expiresAt) < new Date() && invite.status === 'PENDENTE';
+                          const status = invite.status;
+                          
+                          return (
+                            <li key={invite.id} className="p-6 hover:bg-gray-50/50 transition-colors group">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                    status === 'ACEITO' ? 'bg-emerald-100 text-emerald-600' :
+                                    isExpired ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+                                  }`}>
+                                    {status === 'ACEITO' ? <CheckCircle2 size={18} /> : 
+                                     isExpired ? <Clock size={18} /> : <Mail size={18} />}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-gray-900">{invite.email}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold uppercase tracking-tight">
+                                        {ROLE_LABELS[invite.role as UserRole]}
+                                      </span>
+                                      <span className="text-[10px] text-gray-400">•</span>
+                                      {status === 'ACEITO' ? (
+                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                          Ativado
+                                        </span>
+                                      ) : isExpired ? (
+                                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                          Expirado
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                          Pendente (24h)
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
 
-                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => {
-                                    const link = `${window.location.origin}/invite?token=${invite.token}`;
-                                    navigator.clipboard.writeText(link);
-                                    alert("Link copiado!");
-                                  }}
-                                  className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
-                                  title="Copiar Link"
-                                >
-                                  <Copy size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteInvite(invite.id)}
-                                  className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
-                                  title="Excluir Convite"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {status === 'PENDENTE' && !isExpired && (
+                                    <button
+                                      onClick={() => {
+                                        const link = `${window.location.origin}/invite?token=${invite.token}`;
+                                        navigator.clipboard.writeText(link);
+                                        toast.success("Link copiado para a área de transferência!");
+                                      }}
+                                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+                                      title="Copiar Link"
+                                    >
+                                      <Copy size={16} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteInvite(invite.id)}
+                                    className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
+                                    title="Excluir Convite"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   )}
@@ -836,14 +918,22 @@ export default function ConfiguracoesPage() {
 
       <InviteModal
         isOpen={isInviteModalOpen}
-        onClose={() => {
-          setIsInviteModalOpen(false);
-          fetchData();
-        }}
+        onClose={() => setIsInviteModalOpen(false)}
+        onSuccess={() => fetchData()}
         groups={groups}
         internalRoles={Object.fromEntries(
           Object.entries(ROLE_LABELS).filter(([role]) => MANAGEABLE_ROLES.includes(role as any))
         )}
+      />
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        type={confirmModal.type}
+        confirmText={confirmModal.confirmText}
+        isLoading={isSubmitting}
       />
     </div>
   );

@@ -14,6 +14,7 @@ class MailService {
     const pass = process.env.SMTP_PASS;
 
     if (host && user && pass) {
+      console.log(`[SMTP] Inicializando transportador: ${host}:${port} (Usuário: ${user})`);
       this.transporter = nodemailer.createTransport({
         host,
         port,
@@ -22,6 +23,12 @@ class MailService {
           user,
           pass,
         },
+      });
+    } else {
+      console.warn("[SMTP] Configurações ausentes no .env:", {
+        host: !!host,
+        user: !!user,
+        pass: !!pass,
       });
     }
   }
@@ -71,6 +78,7 @@ class MailService {
           html,
         });
         console.log(`E-mail de convite enviado para ${email}`);
+        return true;
       } catch (error) {
         console.error("Erro ao enviar e-mail via SMTP:", error);
         throw error;
@@ -79,6 +87,7 @@ class MailService {
       console.warn("SMTP não configurado. Link de convite gerado:");
       console.warn(`EMAIL: ${email}`);
       console.warn(`LINK: ${inviteLink}`);
+      return false;
     }
   }
 }
