@@ -4,6 +4,12 @@ npm-debug.log
 .next
 .git
 .env*
+.env.*
+*.env
+cdev.env
+.env.backup
+.env.cdev.example
+.env.example
 vitest.config.ts
 vitest.setup.ts
 src/lib/__mocks__

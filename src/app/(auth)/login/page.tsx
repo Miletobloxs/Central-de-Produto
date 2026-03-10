@@ -22,20 +22,29 @@ function LoginForm() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
 
-    if (error) {
-      setError(
-        error.message === "Invalid login credentials"
-          ? "E-mail ou senha incorretos."
-          : "Ocorreu um erro. Tente novamente."
-      );
+      if (error) {
+        setError(
+          error.message === "Invalid login credentials"
+            ? "E-mail ou senha incorretos."
+            : `Erro: ${error.message}`
+        );
+        setLoading(false);
+        return;
+      }
+
+      router.push(redirectTo);
+      router.refresh();
+    } catch (err) {
+      setError("Falha inesperada no sistema de autenticação.");
       setLoading(false);
-      return;
     }
-
-    router.push(redirectTo);
-    router.refresh();
   }
 
   return (
