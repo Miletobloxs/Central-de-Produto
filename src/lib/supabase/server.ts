@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import { supabaseUrl, supabaseAnonKey } from "./env";
 
 export async function createClient() {
+  console.log("DEBUG: createClient (Server) starting...");
   const cookieStore = await cookies();
+  console.log("DEBUG: cookieStore accessed.");
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error("CRITICAL: Supabase environment variables are missing on Vercel!");

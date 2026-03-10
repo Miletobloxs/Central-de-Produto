@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export default async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
+  console.log("DEBUG: Proxy starting for:", request.nextUrl.pathname);
   // Sanitiza: remove espaços, \r e aspas que possam ter vindo do .env
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     ?.trim()
@@ -70,6 +71,8 @@ export default async function proxy(request: NextRequest) {
 
   return supabaseResponse;
 }
+
+export default middleware;
 
 export const config = {
   matcher: [
