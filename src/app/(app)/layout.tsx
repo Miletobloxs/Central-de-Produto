@@ -19,17 +19,18 @@ export default async function AppLayout({
   }
 
   const displayName =
-    user.user_metadata?.name ??
-    user.user_metadata?.full_name ??
-    user.email?.split("@")[0] ??
+    user?.user_metadata?.name ??
+    user?.user_metadata?.full_name ??
+    user?.email?.split("@")[0] ??
     "Usuário";
 
   const initials = displayName
     .split(" ")
+    .filter(Boolean)
     .map((n: string) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || "U";
 
   return (
     <div className="flex h-screen bg-[#F4F6F8] overflow-hidden">
