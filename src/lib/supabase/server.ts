@@ -6,8 +6,8 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("Supabase environment variables are missing!");
-    throw new Error("Missing Supabase configuration");
+    console.error("CRITICAL: Supabase environment variables are missing on Vercel!");
+    return null;
   }
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
