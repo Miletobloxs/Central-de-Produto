@@ -9,7 +9,7 @@
 Antigravity Kit is a modular system consisting of:
 
 - **20 Specialist Agents** - Role-based AI personas
-- **36 Skills** - Domain-specific knowledge modules
+- **912 Skills** - Domain-specific knowledge modules (Core + Awesome Arsenal)
 - **11 Workflows** - Slash command procedures
 
 ---

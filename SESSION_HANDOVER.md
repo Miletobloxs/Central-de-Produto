@@ -1,18 +1,22 @@
-# SESSION_HANDOVER.md - Central de Produto
+# 📂 SESSION_HANDOVER
 
-## 🕒 Checkpoint: 2026-03-07 00:13 BRT
+## 🚀 Status da Missão
+- [x] Infraestrutura vinculada ao Master Hub via /setup. <!-- id: 0 -->
+- [x] Protocolo de Extreme Ownership formalizado e ativado. <!-- id: 1 -->
+- [x] Prisma Seed e Isolação de Ambiente CDEV preparados. <!-- id: 2 -->
+- [x] Build Docker CDEV com injeção de variáveis NEXT_PUBLIC resolvido. <!-- id: 3 -->
+- [x] Login administrativo funcional no ambiente isolado. <!-- id: 4 -->
 
-### 🚀 A Grande Refatoração: UX & Governança Suprema
-Implementamos com sucesso a refatoração da Sidebar, movendo a central de ajuda para o novo componente `SupportFAB` (Opção 2 - Botão Flutuante). Esta mudança liberou o espaço vertical da sidebar, garantindo que o menu de **Configurações** esteja sempre visível sem necessidade de scroll. Além disso, institucionalizamos o **Protocolo TDD First** e o **Ciclo de Implantação e Checkpoint** no `GEMINI.md`, elevando o padrão de segurança e qualidade do projeto.
+## 📝 Log de Operação
 
-### 🛡️ Estado da Arte
-- **UX Operacional**: Sidebar otimizada e central de suporte moderna via FAB com popover interativo.
-- **Segurança de Fluxo**: Governança de IA agora exige testes (Vitest) antes de qualquer código e validação em container antes do commit.
-- **Qualidade Garantida**: Componente `SupportFAB` coberto por testes de integração (3/3 passados).
+### 🕒 Checkpoint: 2026-03-10T18:10:00-03:00
 
-### 📍 Próximo Passo Herdado
-- **Correção de E-mail**: Aguardando a "Senha de App" da conta `admin@bloxs.com.br` (providenciada pelo André Mileto) para validar o fluxo de convites no `.env`.
-- **Testes de Serviço**: Prosseguir com a cobertura de testes para `RoadmapService` e `OKRService`.
+**A Grande Refatoração:**
+Resolvido o "Hanging Promise" do login no Docker através da injeção mandatória de `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` como `ARGs` de build e `ENVs` de runtime. Superados bloqueios de permissão do macOS (`Operation not permitted`) via limpeza física do contexto de build e uso do builder clássico (`DOCKER_BUILDKIT=0`).
 
----
-"Responsabilidade Extrema sobre o sucesso da operação." 🛡️🧪⚙️
+**Estado da Arte:**
+O sistema agora possui um ambiente de desenvolvimento (`cdev`) 100% isolado na porta 3001, com banco de dados próprio e fluxo de autenticação via Supabase totalmente "baked" na imagem, garantindo consistência entre build e execução.
+
+## 🎯 Próximo Passo Herdado
+- Configurar MCP para acesso direto ao banco de dados `central_db_cdev` na OrbStack.
+- Iniciar o desenvolvimento de novas features no Dashboard utilizando o banco isolado.

@@ -46,5 +46,8 @@
     "typescript": "^5",
     "vitest": "^4.0.18",
     "vitest-mock-extended": "^3.1.0"
+  },
+  "prisma": {
+    "seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   }
 }
