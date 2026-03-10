@@ -5,6 +5,11 @@ import { supabaseUrl, supabaseAnonKey } from "./env";
 export async function createClient() {
   const cookieStore = await cookies();
 
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("Supabase environment variables are missing!");
+    throw new Error("Missing Supabase configuration");
+  }
+
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
