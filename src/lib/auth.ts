@@ -9,6 +9,11 @@ import { UserAccessInfo, Role } from "./services/access.service";
  */
 export async function getRequiredSession(): Promise<UserAccessInfo & { id: string; email: string }> {
   const supabase = await createClient();
+  
+  if (!supabase) {
+    throw new Error("Configuração do Supabase ausente. Verifique as variáveis de ambiente.");
+  }
+
   const {
     data: { user: authUser },
   } = await supabase.auth.getUser();
