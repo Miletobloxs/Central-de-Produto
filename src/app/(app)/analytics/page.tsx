@@ -114,7 +114,7 @@ export default function AnalyticsPage() {
       ]);
 
       const krs: KeyResult[] = krsRes.data ?? [];
-      const objs: OKRObjective[] = (objectivesRes.data ?? []).map((obj) => {
+      const objs: OKRObjective[] = (objectivesRes.data ?? []).map((obj: Objective) => {
         const objKRs = krs.filter((kr) => kr.objective_id === obj.id);
         const progress =
           objKRs.length > 0
