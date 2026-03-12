@@ -54,8 +54,15 @@ export default async function AppLayout({
 
   // ── USER SYNCHRONIZATION ──
   // Ensure the user exists in our Postgres 'users' table with their latest metadata.
-  const { teamService } = await import("@/lib/services/team.service");
-  await teamService.syncUser(user);
+  // We skip this during the build phase to avoid Prisma initialization issues.
+  if (process.env.NEXT_PHASE !== "phase-production-build") {
+    try {
+      const { teamService } = await import("@/lib/services/team.service");
+      await teamService.syncUser(user);
+    } catch (syncError) {
+      console.error("DEBUG: [APP_LAYOUT] User sync background failed:", syncError);
+    }
+  }
 
   const displayName =
     user?.user_metadata?.name ??
