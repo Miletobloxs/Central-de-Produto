@@ -52,6 +52,11 @@ export default async function AppLayout({
     redirect("/login");
   }
 
+  // ── USER SYNCHRONIZATION ──
+  // Ensure the user exists in our Postgres 'users' table with their latest metadata.
+  const { teamService } = await import("@/lib/services/team.service");
+  await teamService.syncUser(user);
+
   const displayName =
     user?.user_metadata?.name ??
     user?.user_metadata?.full_name ??

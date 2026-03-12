@@ -31,14 +31,22 @@ export class TeamService {
      * Lista todos os grupos com contagem de usuários.
      */
     async listGroups(): Promise<TeamGroup[]> {
-        return await (prisma as any).teamGroup.findMany({
-            include: {
-                _count: {
-                    select: { users: true },
+        console.log("DEBUG: [TEAM_SERVICE] listGroups called.");
+        try {
+            const groups = await (prisma as any).teamGroup.findMany({
+                include: {
+                    _count: {
+                        select: { users: true },
+                    },
                 },
-            },
-            orderBy: { name: "asc" },
-        });
+                orderBy: { name: "asc" },
+            });
+            console.log(`DEBUG: [TEAM_SERVICE] listGroups found ${groups.length} groups.`);
+            return groups;
+        } catch (error) {
+            console.error("ERROR: [TEAM_SERVICE] listGroups failed:", error);
+            throw error;
+        }
     }
 
     /**
@@ -77,17 +85,25 @@ export class TeamService {
      * Lista usuários para vinculação a grupos.
      */
     async listUsers() {
-        return await (prisma as any).user.findMany({
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                groupId: true,
-                avatar: true,
-            },
-            orderBy: { name: "asc" },
-        });
+        console.log("DEBUG: [TEAM_SERVICE] listUsers called.");
+        try {
+            const users = await (prisma as any).user.findMany({
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                    groupId: true,
+                    avatar: true,
+                },
+                orderBy: { name: "asc" },
+            });
+            console.log(`DEBUG: [TEAM_SERVICE] listUsers found ${users.length} users.`);
+            return users;
+        } catch (error) {
+            console.error("ERROR: [TEAM_SERVICE] listUsers failed:", error);
+            throw error;
+        }
     }
 
     /**
@@ -201,6 +217,71 @@ export class TeamService {
         return await (prisma as any).userInvite.delete({
             where: { id },
         });
+    }
+
+    /**
+     * Sincroniza um usuário do Supabase Auth para a tabela interna.
+     */
+    async syncUser(supabaseUser: { id: string, email?: string, user_metadata?: any }) {
+        if (!supabaseUser.email) return null;
+
+        console.log(`DEBUG: [TEAM_SERVICE] Syncing user: ${supabaseUser.email}`);
+
+        try {
+            const name = supabaseUser.user_metadata?.name || 
+                         supabaseUser.user_metadata?.full_name || 
+                         supabaseUser.email.split('@')[0];
+
+            return await (prisma as any).user.upsert({
+                where: { email: supabaseUser.email },
+                update: {
+                    name: name,
+                    // Note: We don't overwrite the role or groupId here to maintain persistence
+                },
+                create: {
+                    id: supabaseUser.id,
+                    email: supabaseUser.email,
+                    name: name,
+                    role: UserRole.BLOXXS_TEAM, // Default role for new synced users
+                }
+            });
+        } catch (error) {
+            console.error("ERROR: [TEAM_SERVICE] syncUser failed:", error);
+            return null;
+        }
+    }
+
+    /**
+     * Garante que os grupos padrão existam.
+     */
+    async ensureDefaultGroups() {
+        console.log("DEBUG: [TEAM_SERVICE] ensureDefaultGroups called.");
+        try {
+            const adminGroup = await (prisma as any).teamGroup.upsert({
+                where: { name: 'Administradores' },
+                update: {},
+                create: {
+                    name: 'Administradores',
+                    description: 'Grupo com acesso total ao sistema.',
+                    permissions: [
+                        'ORCHESTRATE_PRODUCT',
+                        'MANAGE_TEAM',
+                        'CREATE_TASK',
+                        'MOVE_CARDS',
+                        'VIEW_TASKS',
+                        'VIEW_REPORTS',
+                        'PARTICIPATE_REVIEWS',
+                        'MANAGE_FLAGS',
+                        'MANAGE_ROADMAP',
+                    ],
+                },
+            });
+            console.log("DEBUG: [TEAM_SERVICE] Default groups ensured.");
+            return adminGroup;
+        } catch (error) {
+            console.error("ERROR: [TEAM_SERVICE] ensureDefaultGroups failed:", error);
+            throw error;
+        }
     }
 }
 

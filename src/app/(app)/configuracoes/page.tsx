@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Bell, Shield, Users, Plug, Globe, Save, Check, Plus, MoreVertical, Settings2, Loader2, CheckCircle2, Trash2, UserPlus, UserCog, Clock, Copy, Mail } from "lucide-react";
-import { getGroupsAction, createGroupAction, updateGroupAction, deleteGroupAction, getUsersAction, updateUserAction, deleteUserAction, getPendingInvitesAction, deleteInviteAction, getInvitesAction } from "@/lib/actions/team.actions";
+import { createGroupAction, updateGroupAction, deleteGroupAction, updateUserAction, deleteUserAction, deleteInviteAction, getTeamConfigurationAction, seedGroupsAction } from "@/lib/actions/team.actions";
 import { InviteModal } from "./InviteModal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { toast } from "sonner";
@@ -109,18 +109,34 @@ export default function ConfiguracoesPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [groupsData, usersData, invitesData] = await Promise.all([
-        getGroupsAction(),
-        getUsersAction(),
-        getInvitesAction()
-      ]);
-      setGroups(groupsData);
-      setUsers(usersData);
-      setPendingInvites(invitesData); 
+      console.log("DEBUG: [CONFIG_PAGE] fetching data...");
+      const { groups: groupsData, users: usersData, invites: invitesData } = await getTeamConfigurationAction();
+      setGroups(groupsData || []);
+      setUsers(usersData || []);
+      setPendingInvites(invitesData || []); 
     } catch (error) {
       console.error("Failed to fetch data:", error);
+      toast.error("Erro ao carregar dados de equipe.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSeedGroups = async () => {
+    setIsSubmitting(true);
+    const loadingToast = toast.loading("Inicializando grupos padrão...");
+    try {
+      const result = await seedGroupsAction();
+      if (result.success) {
+        toast.success("Grupos iniciais configurados!", { id: loadingToast });
+        fetchData();
+      } else {
+        toast.error(result.error || "Erro ao inicializar grupos.", { id: loadingToast });
+      }
+    } catch (error) {
+      toast.error("Erro crítico ao configurar grupos.", { id: loadingToast });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -637,13 +653,25 @@ export default function ConfiguracoesPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                     <h2 className="text-sm font-bold text-gray-900">Níveis de Acesso</h2>
-                    <button
-                      onClick={() => openGroupModal()}
-                      className="flex items-center gap-2 text-xs font-semibold text-white bg-blue-600 rounded-xl px-3.5 py-2 hover:bg-blue-700 transition-colors"
-                    >
-                      <Plus size={12} />
-                      Novo Grupo
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {groups.length === 0 && !loading && (
+                        <button
+                          onClick={handleSeedGroups}
+                          disabled={isSubmitting}
+                          className="flex items-center gap-2 text-xs font-semibold text-blue-600 bg-blue-50 rounded-xl px-3.5 py-2 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                        >
+                          {isSubmitting ? <Loader2 size={12} className="animate-spin" /> : <Settings2 size={12} />}
+                          Inicializar Grupos
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openGroupModal()}
+                        className="flex items-center gap-2 text-xs font-semibold text-white bg-blue-600 rounded-xl px-3.5 py-2 hover:bg-blue-700 transition-colors"
+                      >
+                        <Plus size={12} />
+                        Novo Grupo
+                      </button>
+                    </div>
                   </div>
 
                   {loading ? (

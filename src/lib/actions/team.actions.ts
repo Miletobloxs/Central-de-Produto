@@ -55,17 +55,44 @@ export async function createInviteAction(data: { email: string; role: UserRole; 
     revalidatePath("/configuracoes");
     return result;
 }
-
-export async function getInvitesAction() {
-    return await teamService.listAllInvites();
-}
-
-export async function getPendingInvitesAction() {
-    return await teamService.listPendingInvites();
+export async function getTeamConfigurationAction() {
+    console.log("DEBUG: [TEAM_ACTIONS] getTeamConfigurationAction called.");
+    try {
+        const [groups, users, invites] = await Promise.all([
+            teamService.listGroups().catch(e => {
+                console.error("ERROR: [TEAM_ACTIONS] listGroups failed:", e);
+                return [];
+            }),
+            teamService.listUsers().catch(e => {
+                console.error("ERROR: [TEAM_ACTIONS] listUsers failed:", e);
+                return [];
+            }),
+            teamService.listAllInvites().catch(e => {
+                console.error("ERROR: [TEAM_ACTIONS] listAllInvites failed:", e);
+                return [];
+            })
+        ]);
+        return { groups, users, invites };
+    } catch (error) {
+        console.error("CRITICAL: [TEAM_ACTIONS] getTeamConfigurationAction failed:", error);
+        return { groups: [], users: [], invites: [] };
+    }
 }
 
 export async function deleteInviteAction(id: string) {
     const result = await teamService.deleteInvite(id);
     revalidatePath("/configuracoes");
     return result;
+}
+
+export async function seedGroupsAction() {
+    console.log("DEBUG: [TEAM_ACTIONS] seedGroupsAction triggered.");
+    try {
+        const result = await teamService.ensureDefaultGroups();
+        revalidatePath("/configuracoes");
+        return { success: true, data: result };
+    } catch (error) {
+        console.error("ERROR: [TEAM_ACTIONS] seedGroupsAction failed:", error);
+        return { success: false, error: "Falha ao inicializar grupos." };
+    }
 }
