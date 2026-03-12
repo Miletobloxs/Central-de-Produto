@@ -91,54 +91,70 @@ export default function DashboardPage() {
   const [objectives, setObjectives] = useState<Objective[]>([]);
 
   const fetchDashboard = useCallback(async () => {
+    if (!supabase) {
+      console.warn("DEBUG: fetchDashboard skipped - supabase is null.");
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
 
-    // Active sprint
-    const { data: sprintData } = await supabase
-      .from("sprints")
-      .select("*")
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    setActiveSprint(sprintData ?? null);
-
-    // Sprint tasks
-    if (sprintData) {
-      const { data: taskData } = await supabase
-        .from("tasks")
+    try {
+      // Active sprint
+      const { data: sprintData } = await supabase
+        .from("sprints")
         .select("*")
-        .eq("sprint_id", sprintData.id);
-      setTasks(taskData ?? []);
-    } else {
-      setTasks([]);
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setActiveSprint(sprintData ?? null);
+
+      // Sprint tasks
+      if (sprintData) {
+        const { data: taskData } = await supabase
+          .from("tasks")
+          .select("*")
+          .eq("sprint_id", sprintData.id);
+        setTasks(taskData ?? []);
+      } else {
+        setTasks([]);
+      }
+
+      // Backlog counts
+      const { count: total } = await supabase
+        .from("backlog_items")
+        .select("*", { count: "exact", head: true });
+      setBacklogCount(total ?? 0);
+
+      const { count: mustCount } = await supabase
+        .from("backlog_items")
+        .select("*", { count: "exact", head: true })
+        .eq("moscow_priority", "must")
+        .eq("status", "open");
+      setMustHaveCount(mustCount ?? 0);
+
+      // OKRs this quarter
+      const { data: objData } = await supabase
+        .from("objectives")
+        .select("*, key_results(*)")
+        .eq("quarter", "Q1 2026");
+      setObjectives(objData ?? []);
+    } catch (err) {
+      console.error("DEBUG: fetchDashboard failed:", err);
+    } finally {
+      setLoading(false);
     }
-
-    // Backlog counts
-    const { count: total } = await supabase
-      .from("backlog_items")
-      .select("*", { count: "exact", head: true });
-    setBacklogCount(total ?? 0);
-
-    const { count: mustCount } = await supabase
-      .from("backlog_items")
-      .select("*", { count: "exact", head: true })
-      .eq("moscow_priority", "must")
-      .eq("status", "open");
-    setMustHaveCount(mustCount ?? 0);
-
-    // OKRs this quarter
-    const { data: objData } = await supabase
-      .from("objectives")
-      .select("*, key_results(*)")
-      .eq("quarter", "Q1 2026");
-    setObjectives(objData ?? []);
-
-    setLoading(false);
   }, [supabase]);
 
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  useEffect(() => { 
+    if (supabase) {
+      fetchDashboard(); 
+    } else {
+      setLoading(false);
+    }
+  }, [fetchDashboard, supabase]);
 
   // KPI calculations
   const totalPoints   = tasks.reduce((s, t) => s + (t.story_points ?? 0), 0);
