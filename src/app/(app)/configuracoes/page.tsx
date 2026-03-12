@@ -7,7 +7,7 @@ import { InviteModal } from "./InviteModal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { toast } from "sonner";
 import type { Permission } from "@/lib/services/access.service";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/lib/types/enums";
 
 const AVAILABLE_PERMISSIONS = [
   { id: 'ORCHESTRATE_PRODUCT' as Permission, label: 'Orquestrar Produto', desc: 'Gerenciar Roadmaps, Épicos e Configurações' },

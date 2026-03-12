@@ -7,7 +7,7 @@ async function getTeamService() {
 }
 import { revalidatePath } from "next/cache";
 import type { Permission } from "@/lib/services/access.service";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/lib/types/enums";
 
 export async function getGroupsAction() {
     const teamService = await getTeamService();

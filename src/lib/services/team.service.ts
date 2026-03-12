@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Permission } from "./access.service";
-import { UserRole, InviteStatus } from "@prisma/client";
+import { UserRole, InviteStatus } from "@/lib/types/enums";
 import crypto from "crypto";
 import { mailService } from "./mail.service";
 

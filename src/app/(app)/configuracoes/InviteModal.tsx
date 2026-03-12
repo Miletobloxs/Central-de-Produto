@@ -10,7 +10,7 @@ import {
     CheckCircle2,
     Clock
 } from "lucide-react";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "@/lib/types/enums";
 import { createInviteAction } from "@/lib/actions/team.actions";
 import { TeamGroup } from "@/lib/services/team.service";
 import { toast } from "sonner";
