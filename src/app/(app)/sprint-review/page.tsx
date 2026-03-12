@@ -284,7 +284,7 @@ export default function SprintReviewPage() {
       .select("*")
       .eq("sprint_id", selectedId)
       .is("parent_task_id", null)
-      .then(({ data }) => {
+      .then(({ data }: { data: Task[] | null }) => {
         setTasks(data ?? []);
         setLoadingTasks(false);
       });

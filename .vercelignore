@@ -1,0 +1,10 @@
+next-env.d.ts
+*.d.ts
+.env
+.env.*
+node_modules
+.next
+.git
+.gemini
+.antigravityignore
+

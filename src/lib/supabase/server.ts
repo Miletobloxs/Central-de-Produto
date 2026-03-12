@@ -3,51 +3,58 @@ import { cookies } from "next/headers";
 import { supabaseUrl, supabaseAnonKey } from "./env";
 
 export async function createClient() {
-  console.log("DEBUG: createClient (Server) starting...");
+  console.log("DEBUG: [SUPABASE_SERVER] createClient starting...");
   
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("CRITICAL: Supabase environment variables are missing!");
+    console.error("CRITICAL: [SUPABASE_SERVER] Missing environment variables!");
     return null;
   }
 
-  // Pre-rendering/Build-time check
-  if (process.env.NEXT_PHASE === 'phase-production-build' || process.env.VITE_VERCEL_ENV === 'production' && typeof window === 'undefined' && !process.env.VERCEL) {
-     console.log("DEBUG: createClient (Server) skipping cookies during build phase.");
-     return createServerClient(supabaseUrl, supabaseAnonKey, { cookies: { getAll: () => [], setAll: () => {} } });
+  // Detect build or pre-render phases to avoid cookie access errors
+  const isBuildPhase = 
+    process.env.NEXT_PHASE === 'phase-production-build' || 
+    (process.env.VITE_VERCEL_ENV === 'production' && typeof window === 'undefined' && !process.env.VERCEL);
+
+  if (isBuildPhase) {
+     console.log("DEBUG: [SUPABASE_SERVER] Skipping cookies during build phase.");
+     return createServerClient(supabaseUrl, supabaseAnonKey, { 
+       cookies: { getAll: () => [], setAll: () => {} } 
+     });
   }
 
   try {
     const cookieStore = await cookies();
-    console.log("DEBUG: cookieStore accessed.");
+    console.log("DEBUG: [SUPABASE_SERVER] cookieStore accessed successfully.");
 
-    const client = createServerClient(supabaseUrl, supabaseAnonKey, {
+    return createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
           try {
             return cookieStore.getAll();
-          } catch {
+          } catch (e) {
+             console.warn("DEBUG: [SUPABASE_SERVER] getAll cookies failed:", e);
              return [];
           }
         },
         setAll(cookiesToSet) {
+          // Note: setAll is only effective in Middleware or Server Actions.
+          // In Server Components/Layouts, it will likely throw or be ignored.
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             );
-          } catch {
-            // Ignorado em Server Components
+          } catch (err) {
+            // This is expected in Server Components rendering.
+            // We only log if it's a surprising error.
           }
         },
       },
     });
-
-    console.log("DEBUG: createClient (Server) initialized successfully.");
-    return client;
   } catch (err) {
-    console.warn("DEBUG: createClient - cookies() unavailable (likely during build/prerender):", err);
-    // Return a degraded client for build-time compatibility
+    console.warn("DEBUG: [SUPABASE_SERVER] cookies() call failed (likely build-time):", err);
     return createServerClient(supabaseUrl, supabaseAnonKey, { 
       cookies: { getAll: () => [], setAll: () => {} } 
     });
   }
 }
+

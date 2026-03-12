@@ -38,11 +38,11 @@ export async function middleware(request: NextRequest) {
       },
     });
 
-    console.log("PROXY: Checking user session...");
+    console.log(`DEBUG: [MIDDLEWARE] Checking session for: ${request.nextUrl.pathname}`);
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError) {
-      console.error("PROXY: Auth error detected:", authError);
+      console.warn("DEBUG: [MIDDLEWARE] Auth error:", authError.message);
     }
 
     const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
@@ -51,24 +51,24 @@ export async function middleware(request: NextRequest) {
                            request.nextUrl.pathname.startsWith("/sprints") ||
                            request.nextUrl.pathname.startsWith("/okrs");
 
-    console.log(`PROXY: Path [${request.nextUrl.pathname}] User [${user?.email ?? "none"}]`);
+    console.log(`DEBUG: [MIDDLEWARE] Path: ${request.nextUrl.pathname} | User: ${user?.email ?? "none"}`);
 
     if (!user && isDashboardRoute) {
-      console.log("PROXY: Unauthorized access to restricted route, redirecting to /login");
+      console.log("DEBUG: [MIDDLEWARE] Redirecting UNKNOWN user to /login");
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
     if (user && isAuthRoute) {
-      console.log("PROXY: Authenticated user on /login, redirecting to /dashboard");
+      console.log("DEBUG: [MIDDLEWARE] Redirecting AUTHED user to /dashboard");
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    console.log("PROXY: Proceeding to response...");
     return response;
   } catch (err) {
-    console.error("PROXY FATAL ERROR (CATCH):", err);
+    console.error("CRITICAL: [MIDDLEWARE] Fatal exception:", err);
     return response;
   }
+
 }
 
 // Configurado para rodar em quase tudo do app

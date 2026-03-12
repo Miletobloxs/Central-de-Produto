@@ -4,6 +4,8 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
 
 function LoginForm() {
   const router = useRouter();
@@ -24,12 +26,14 @@ function LoginForm() {
     const supabase = createClient();
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({ 
+      console.log("DEBUG: [LOGIN] Attempting sign-in for:", email);
+      const { error, data } = await supabase.auth.signInWithPassword({ 
         email, 
         password 
       });
 
       if (error) {
+        console.warn("DEBUG: [LOGIN] Auth error:", error.message);
         setError(
           error.message === "Invalid login credentials"
             ? "E-mail ou senha incorretos."
@@ -39,13 +43,31 @@ function LoginForm() {
         return;
       }
 
+      console.log("DEBUG: [LOGIN] Auth success. Redirecting to:", redirectTo);
+      toast.success("Login realizado!", {
+        description: "Carregando o painel de controle..."
+      });
+
+      // Safety timeout: If the dashboard layout crashes on Vercel during SSR,
+      // the browser might hang on the transition. We warn the user after 6s.
+      const redirectTimeout = setTimeout(() => {
+        console.error("DEBUG: [LOGIN] Redirect timeout reached. Dashboard might be crashing.");
+        setError("O dashboard está demorando para responder. Tente recarregar a página.");
+        setLoading(false);
+      }, 6000);
+
       router.push(redirectTo);
       router.refresh();
+      
+      // If we navigate away, the timeout is implicitly cleared by unmount, 
+      // but let's be safe if refresh() causes issues.
     } catch (err) {
+      console.error("DEBUG: [LOGIN] Critical catch block:", err);
       setError("Falha inesperada no sistema de autenticação.");
       setLoading(false);
     }
   }
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
