@@ -82,7 +82,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
     } catch (error: any) {
-        console.error(`API Error [team/config] POST [${(request as any).action}]:`, error);
+        console.error(`API Error [team/config] POST:`, error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

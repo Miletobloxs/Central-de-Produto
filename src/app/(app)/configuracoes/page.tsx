@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Shield, Users, Plug, Globe, Save, Check, Plus, MoreVertical, Settings2, Loader2, CheckCircle2, Trash2, UserPlus, UserCog, Clock, Copy, Mail } from "lucide-react";
+import { Bell, Shield, Users, Plug, Globe, Save, Check } from "lucide-react";
 import { InviteModal } from "./InviteModal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { toast } from "sonner";
@@ -9,6 +9,9 @@ import type { Permission } from "@/lib/services/access.service";
 import { UserRole } from "@/lib/types/enums";
 import { TeamSettings } from "./TeamSettings";
 import type { TeamUser, TeamGroup, TeamInvite } from "@/lib/services/team.service";
+
+// Client-side version of TeamInvite where Date is represented as string from JSON
+type ClientTeamInvite = Omit<TeamInvite, 'expiresAt'> & { expiresAt: string };
 
 const AVAILABLE_PERMISSIONS = [
   { id: 'ORCHESTRATE_PRODUCT' as Permission, label: 'Orquestrar Produto', desc: 'Gerenciar Roadmaps, Épicos e Configurações' },
@@ -56,7 +59,7 @@ export default function ConfiguracoesPage() {
   
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [groups, setGroups] = useState<TeamGroup[]>([]);
-  const [invites, setInvites] = useState<TeamInvite[]>([]);
+  const [invites, setInvites] = useState<ClientTeamInvite[]>([]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -256,7 +259,7 @@ export default function ConfiguracoesPage() {
             <TeamSettings 
               groups={groups}
               users={users}
-              invites={invites}
+              invites={invites as any}
               isLoading={isLoading}
               onRefresh={fetchData}
               internalRoles={INTERNAL_ROLES}

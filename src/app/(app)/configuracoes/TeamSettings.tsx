@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Shield, Plus, MoreVertical, Settings2, Trash2, UserPlus, UserCog, Clock, Copy, Mail, CheckCircle2, UserCheck, Loader2 } from "lucide-react";
+import { Users, Shield, Trash2, UserPlus, Clock, Mail, CheckCircle2, Loader2, Settings2 } from "lucide-react";
 import { UserRole } from "@/lib/types/enums";
 import { TeamGroup, TeamUser, TeamInvite } from "@/lib/services/team.service";
 import { InviteModal } from "./InviteModal";
