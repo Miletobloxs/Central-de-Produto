@@ -7,7 +7,6 @@ import { TeamGroup, TeamUser, TeamInvite } from "@/lib/services/team.service";
 import { InviteModal } from "./InviteModal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { toast } from "sonner";
-import { createGroupAction, updateGroupAction, deleteGroupAction, updateUserAction, deleteUserAction, deleteInviteAction, seedGroupsAction } from "@/lib/actions/team.actions";
 
 interface TeamSettingsProps {
     groups: TeamGroup[];
@@ -29,18 +28,29 @@ export function TeamSettings({ groups, users, invites, isLoading, onRefresh, int
     const [isUpdatingUser, setIsUpdatingUser] = useState<string | null>(null);
     const [isSeedingGroups, setIsSeedingGroups] = useState(false);
 
+    const callApi = async (action: string, id?: string, data?: any) => {
+        const response = await fetch('/api/team/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, id, data })
+        });
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+        return result;
+    };
+
     const handleSeedGroups = async () => {
         setIsSeedingGroups(true);
         try {
-            const result = await seedGroupsAction();
+            const result = await callApi('seed');
             if (result.success) {
                 toast.success("Grupos iniciais criados com sucesso!");
                 onRefresh();
             } else {
                 toast.error(result.error || "Erro ao criar grupos iniciais.");
             }
-        } catch (error) {
-            toast.error("Erro inesperado ao criar grupos.");
+        } catch (error: any) {
+            toast.error("Erro inesperado: " + error.message);
         } finally {
             setIsSeedingGroups(false);
         }
@@ -50,47 +60,47 @@ export function TeamSettings({ groups, users, invites, isLoading, onRefresh, int
         if (!groupForm.name) return toast.error("Nome do grupo é obrigatório");
         try {
             if (selectedGroup) {
-                await updateGroupAction(selectedGroup.id, { 
+                await callApi('updateGroup', selectedGroup.id, { 
                     name: groupForm.name, 
-                    permissions: groupForm.permissions as any 
+                    permissions: groupForm.permissions
                 });
                 toast.success("Grupo atualizado");
             } else {
-                await createGroupAction({ 
+                await callApi('createGroup', undefined, { 
                     name: groupForm.name, 
-                    description: "", // Added empty description
-                    permissions: groupForm.permissions as any 
+                    description: "",
+                    permissions: groupForm.permissions
                 });
                 toast.success("Grupo criado");
             }
             setIsGroupModalOpen(false);
             onRefresh();
-        } catch (error) {
-            toast.error("Erro ao salvar grupo.");
+        } catch (error: any) {
+            toast.error("Erro ao salvar: " + error.message);
         }
     };
 
     const handleDeleteGroup = async (id: string) => {
         try {
-            await deleteGroupAction(id);
+            await callApi('deleteGroup', id);
             toast.success("Grupo excluído");
             onRefresh();
-        } catch (error) {
-            toast.error("Erro ao excluir grupo.");
+        } catch (error: any) {
+            toast.error("Erro ao excluir: " + error.message);
         }
     };
 
     const handleUpdateUser = async (userId: string, role: string, groupId: string | null) => {
         setIsUpdatingUser(userId);
         try {
-            await updateUserAction(userId, { 
-                role: role as UserRole, 
+            await callApi('updateUser', userId, { 
+                role, 
                 groupId 
             });
             toast.success("Usuário atualizado");
             onRefresh();
-        } catch (error) {
-            toast.error("Erro ao atualizar usuário.");
+        } catch (error: any) {
+            toast.error("Erro ao atualizar: " + error.message);
         } finally {
             setIsUpdatingUser(null);
         }
@@ -99,11 +109,11 @@ export function TeamSettings({ groups, users, invites, isLoading, onRefresh, int
     const handleDeleteUser = async (userId: string) => {
         setIsDeletingUser(userId);
         try {
-            await deleteUserAction(userId);
+            await callApi('deleteUser', userId);
             toast.success("Usuário removido");
             onRefresh();
-        } catch (error) {
-            toast.error("Erro ao remover usuário.");
+        } catch (error: any) {
+            toast.error("Erro ao remover: " + error.message);
         } finally {
             setIsDeletingUser(null);
         }
@@ -111,11 +121,11 @@ export function TeamSettings({ groups, users, invites, isLoading, onRefresh, int
 
     const handleDeleteInvite = async (id: string) => {
         try {
-            await deleteInviteAction(id);
+            await callApi('deleteInvite', id);
             toast.success("Convite cancelado");
             onRefresh();
-        } catch (error) {
-            toast.error("Erro ao cancelar convite.");
+        } catch (error: any) {
+            toast.error("Erro ao cancelar: " + error.message);
         }
     };
 

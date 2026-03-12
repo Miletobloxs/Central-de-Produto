@@ -11,7 +11,6 @@ import {
     Clock
 } from "lucide-react";
 import { UserRole } from "@/lib/types/enums";
-import { createInviteAction } from "@/lib/actions/team.actions";
 import { TeamGroup } from "@/lib/services/team.service";
 import { toast } from "sonner";
 
@@ -38,11 +37,22 @@ export function InviteModal({ isOpen, onClose, onSuccess, groups, internalRoles 
         e.preventDefault();
         setIsLoading(true);
         try {
-            const { invite, emailSent: sent } = await createInviteAction({
-                email,
-                role: selectedRole,
-                groupId: selectedGroupId || null,
+            const response = await fetch('/api/team/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'createInvite',
+                    data: {
+                        email,
+                        role: selectedRole,
+                        groupId: selectedGroupId || null,
+                    }
+                })
             });
+            const result = await response.json();
+            if (result.error) throw new Error(result.error);
+
+            const { invite, emailSent: sent } = result;
 
             const baseUrl = window.location.origin;
             setInviteLink(`${baseUrl}/invite?token=${invite.token}`);
@@ -54,8 +64,8 @@ export function InviteModal({ isOpen, onClose, onSuccess, groups, internalRoles 
                 toast.warning("Convite gerado, mas o e-mail não pôde ser enviado. Compartilhe o link manualmente.");
             }
             onSuccess?.(); // Trigger refresh in parent
-        } catch (error) {
-            toast.error("Erro ao gerar link de convite.");
+        } catch (error: any) {
+            toast.error("Erro ao gerar link: " + error.message);
         } finally {
             setIsLoading(false);
         }
