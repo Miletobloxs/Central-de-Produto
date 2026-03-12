@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Bell, Shield, Users, Plug, Globe, Save, Check, Plus, MoreVertical, Settings2, Loader2, CheckCircle2, Trash2, UserPlus, UserCog, Clock, Copy, Mail } from "lucide-react";
-import { createGroupAction, updateGroupAction, deleteGroupAction, updateUserAction, deleteUserAction, deleteInviteAction, getTeamConfigurationAction, seedGroupsAction } from "@/lib/actions/team.actions";
 import { InviteModal } from "./InviteModal";
 import { ConfirmationModal } from "./ConfirmationModal";
 import { toast } from "sonner";
@@ -298,6 +297,11 @@ export default function ConfiguracoesPage() {
             </div>
           )}
         </div>
+      </div>
+      <div className="flex justify-center pt-8 border-t border-gray-50">
+        <p className="text-[10px] font-bold text-gray-300 uppercase tracking-[0.2em]">
+          Central de Produto v2.5.0-API-BYPASS
+        </p>
       </div>
     </div>
   );
