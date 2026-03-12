@@ -8,6 +8,8 @@ import { ConfirmationModal } from "./ConfirmationModal";
 import { toast } from "sonner";
 import type { Permission } from "@/lib/services/access.service";
 import { UserRole } from "@/lib/types/enums";
+import { TeamSettings } from "./TeamSettings";
+import type { TeamUser, TeamGroup, TeamInvite } from "@/lib/services/team.service";
 
 const AVAILABLE_PERMISSIONS = [
   { id: 'ORCHESTRATE_PRODUCT' as Permission, label: 'Orquestrar Produto', desc: 'Gerenciar Roadmaps, Épicos e Configurações' },
@@ -36,10 +38,10 @@ const integrations = [
   { name: "Figma", desc: "Designs vinculados aos épicos", connected: false, icon: "FG", color: "bg-pink-500 text-white" },
 ];
 
-const ROLE_LABELS: Record<UserRole, string> = {
+const INTERNAL_ROLES = {
   [UserRole.SUPER_ADMIN]: "Super Admin",
   [UserRole.ADMIN]: "Administrador",
-  [UserRole.BOARD]: "Board (Conselho)",
+  [UserRole.BOARD]: "Conselho (Board)",
   [UserRole.DEVELOPER]: "Desenvolvedor",
   [UserRole.BLOXXS_TEAM]: "Time Bloxs",
   [UserRole.ORIGINADOR]: "Originador",
@@ -48,270 +50,37 @@ const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.INVESTIDOR]: "Investidor",
 };
 
-// Cargos que podem ser selecionados/atribuídos nesta plataforma (Foco Interno)
-const MANAGEABLE_ROLES = [
-  UserRole.SUPER_ADMIN,
-  UserRole.ADMIN,
-  UserRole.BOARD,
-  UserRole.DEVELOPER,
-  UserRole.BLOXXS_TEAM
-];
-
-const ROLE_HINTS: Record<UserRole, string> = {
-  [UserRole.SUPER_ADMIN]: "Gestão de Infraestrutura e Governança Plena",
-  [UserRole.ADMIN]: "Gestão de Produto, Equipe e Operações",
-  [UserRole.BOARD]: "Acesso Estratégico e Relatórios de Inteligência",
-  [UserRole.DEVELOPER]: "Execução Técnica, Roadmaps e Feature Flags",
-  [UserRole.BLOXXS_TEAM]: "Operacional (Permissões via Grupos)",
-  [UserRole.ORIGINADOR]: "Parceiro Externo (Originação)",
-  [UserRole.DISTRIBUIDOR]: "Parceiro Externo (Distribuição)",
-  [UserRole.ASSESSOR]: "Parceiro Externo (Assessoria)",
-  [UserRole.INVESTIDOR]: "Cliente Final (Investimentos)",
-};
-
 export default function ConfiguracoesPage() {
   const [activeTab, setActiveTab] = useState<Tab>("equipe");
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>("colaboradores");
   const [saved, setSaved] = useState(false);
-  const [loading, setLoading] = useState(true);
-  // State management
-  const [users, setUsers] = useState<any[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<any | null>(null);
-  const [editingUser, setEditingUser] = useState<any | null>(null);
-  const [newName, setNewName] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [selectedPermissions, setSelectedPermissions] = useState<Permission[]>([]);
-  const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.INVESTIDOR);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
-
-  // Confirmation Modal State
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    description: string;
-    onConfirm: () => Promise<void>;
-    type: "info" | "warning" | "danger" | "success";
-    confirmText?: string;
-  }>({
-    isOpen: false,
-    title: "",
-    description: "",
-    onConfirm: async () => {},
-    type: "info",
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [users, setUsers] = useState<TeamUser[]>([]);
+  const [groups, setGroups] = useState<TeamGroup[]>([]);
+  const [invites, setInvites] = useState<TeamInvite[]>([]);
 
   const fetchData = async () => {
-    setLoading(true);
+    setIsLoading(true);
     try {
-      console.log("DEBUG: [CONFIG_PAGE] fetching data...");
-      const { groups: groupsData, users: usersData, invites: invitesData } = await getTeamConfigurationAction();
-      setGroups(groupsData || []);
-      setUsers(usersData || []);
-      setPendingInvites(invitesData || []); 
+      const response = await fetch('/api/team/config');
+      const data = await response.json();
+      
+      if (data.error) throw new Error(data.error);
+
+      setGroups(data.groups || []);
+      setUsers(data.users || []);
+      setInvites(data.invites || []); 
     } catch (error) {
       console.error("Failed to fetch data:", error);
       toast.error("Erro ao carregar dados de equipe.");
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSeedGroups = async () => {
-    setIsSubmitting(true);
-    const loadingToast = toast.loading("Inicializando grupos padrão...");
-    try {
-      const result = await seedGroupsAction();
-      if (result.success) {
-        toast.success("Grupos iniciais configurados!", { id: loadingToast });
-        fetchData();
-      } else {
-        toast.error(result.error || "Erro ao inicializar grupos.", { id: loadingToast });
-      }
-    } catch (error) {
-      toast.error("Erro crítico ao configurar grupos.", { id: loadingToast });
-    } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (activeTab === "equipe") {
-      fetchData();
-    }
-  }, [activeTab]);
-
-  const handleSaveGroup = async () => {
-    if (!newName || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      if (editingGroup) {
-        await updateGroupAction(editingGroup.id, {
-          name: newName,
-          description: newDescription,
-          permissions: selectedPermissions
-        });
-      } else {
-        await createGroupAction({
-          name: newName,
-          description: newDescription,
-          permissions: selectedPermissions
-        });
-      }
-      closeGroupModal();
-      fetchData();
-    } catch (error) {
-      console.error("Failed to save group:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteGroup = (id: string) => {
-    setConfirmModal({
-      isOpen: true,
-      title: "Excluir Grupo?",
-      description: "Tem certeza que deseja excluir este grupo? Usuários vinculados ficarão sem grupo e perderão as permissões associadas.",
-      type: "danger",
-      confirmText: "Excluir Grupo",
-      onConfirm: async () => {
-        // Optimistic update
-        setGroups(prev => prev.filter(g => g.id !== id));
-        
-        setIsSubmitting(true);
-        try {
-          await deleteGroupAction(id);
-          toast.success("Grupo excluído com sucesso!");
-          fetchData();
-        } catch (error) {
-          toast.error("Erro ao excluir grupo.");
-          fetchData(); // Rollback
-        } finally {
-          setIsSubmitting(false);
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      }
-    });
-  };
-
-  const handleSaveUser = async () => {
-    if (!editingUser || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      await updateUserAction(editingUser.id, {
-        role: selectedRole,
-        groupId: selectedGroupId
-      });
-      closeUserModal();
-      fetchData();
-    } catch (error) {
-      console.error("Failed to update user:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteUser = (id: string) => {
-    setConfirmModal({
-      isOpen: true,
-      title: "Remover Colaborador?",
-      description: "Atenção: A exclusão do usuário é permanente. Ele perderá acesso imediato à plataforma.",
-      type: "danger",
-      confirmText: "Remover Acesso",
-      onConfirm: async () => {
-        // Optimistic update
-        setUsers(prev => prev.filter(u => u.id !== id));
-
-        setIsSubmitting(true);
-        try {
-          await deleteUserAction(id);
-          toast.success("Colaborador removido.");
-          fetchData();
-        } catch (error) {
-          toast.error("Erro ao remover colaborador.");
-          fetchData(); // Rollback
-        } finally {
-          setIsSubmitting(false);
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      }
-    });
-  };
-
-  const handleDeleteInvite = (id: string) => {
-    setConfirmModal({
-      isOpen: true,
-      title: "Cancelar Convite?",
-      description: "O link de convite enviado por e-mail deixará de funcionar imediatamente.",
-      type: "warning",
-      confirmText: "Cancelar Convite",
-      onConfirm: async () => {
-        // Optimistic update
-        setPendingInvites(prev => prev.filter(inv => inv.id !== id));
-
-        setIsSubmitting(true);
-        try {
-          await deleteInviteAction(id);
-          toast.success("Convite cancelado.");
-          fetchData();
-        } catch (error) {
-          toast.error("Erro ao cancelar convite.");
-          fetchData(); // Rollback
-        } finally {
-          setIsSubmitting(false);
-          setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        }
-      }
-    });
-  };
-
-  const openGroupModal = (group?: any) => {
-    if (group) {
-      setEditingGroup(group);
-      setNewName(group.name);
-      setNewDescription(group.description || "");
-      setSelectedPermissions(group.permissions || []);
-    } else {
-      setEditingGroup(null);
-      setNewName("");
-      setNewDescription("");
-      setSelectedPermissions([]);
-    }
-    setIsGroupModalOpen(true);
-  };
-
-  const closeGroupModal = () => {
-    setIsGroupModalOpen(false);
-    setEditingGroup(null);
-    setNewName("");
-    setNewDescription("");
-    setSelectedPermissions([]);
-  };
-
-  const openUserModal = (user: any) => {
-    setEditingUser(user);
-    setSelectedRole(user.role);
-    setSelectedGroupId(user.groupId);
-    setIsUserModalOpen(true);
-  };
-
-  const closeUserModal = () => {
-    setIsUserModalOpen(false);
-    setEditingUser(null);
-  };
-
-  const togglePermission = (permId: Permission) => {
-    setSelectedPermissions(prev =>
-      prev.includes(permId)
-        ? prev.filter(p => p !== permId)
-        : [...prev, permId]
-    );
-  };
+    fetchData();
+  }, []);
 
   const handleSave = () => {
     setSaved(true);
@@ -323,7 +92,9 @@ export default function ConfiguracoesPage() {
     <div className="p-6 space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Configurações</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          Configurações
+        </h1>
         <p className="text-sm text-gray-500 mt-0.5">Gerencie as preferências da Central de Produto</p>
       </div>
 
@@ -483,262 +254,15 @@ export default function ConfiguracoesPage() {
 
           {/* ── Equipe & Acesso ── */}
           {activeTab === "equipe" && (
-            <div className="space-y-5">
-              {/* Sub-Tabs Nav */}
-              <div className="flex items-center gap-1 bg-gray-100/50 p-1 rounded-xl w-fit">
-                <button
-                  onClick={() => setActiveSubTab("colaboradores")}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeSubTab === "colaboradores"
-                    ? "bg-white text-blue-700 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                    }`}
-                >
-                  Colaboradores
-                </button>
-                <button
-                  onClick={() => setActiveSubTab("grupos")}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeSubTab === "grupos"
-                    ? "bg-white text-blue-700 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                    }`}
-                >
-                  Configuração de Grupos
-                </button>
-              </div>
-
-              {activeSubTab === "colaboradores" ? (
-                <>
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900">Membros da Equipe</h3>
-                        <p className="text-sm text-gray-500">Colaboradores ativos na plataforma.</p>
-                      </div>
-                      <button
-                        onClick={() => setIsInviteModalOpen(true)}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
-                      >
-                        <UserPlus size={18} />
-                        Convidar membro
-                      </button>
-                    </div>
-
-                    <div className="divide-y divide-gray-50">
-                      {users.map((member) => {
-                        const initials = member.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || '??';
-                        return (
-                          <div key={member.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors group">
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold bg-blue-100 text-blue-700 shrink-0">
-                              {initials}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-gray-800">{member.name}</p>
-                              <p className="text-xs text-gray-500">{member.email}</p>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                                {ROLE_LABELS[member.role as UserRole] || member.role}
-                              </span>
-                              <span className="text-[9px] text-gray-400 italic">
-                                {ROLE_HINTS[member.role as UserRole]}
-                              </span>
-                              <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full mt-1">
-                                {groups.find(g => g.id === member.groupId)?.name || "Sem Grupo"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => openUserModal(member)}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                title="Editar Colaborador"
-                              >
-                                <UserCog size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(member.id)}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Excluir Colaborador"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Convites e Histórico */}
-                  {pendingInvites.length > 0 && (
-                    <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-                      <div className="p-8 border-b border-gray-100 bg-slate-50/50">
-                        <div className="flex items-center gap-2">
-                          <Mail className="text-slate-600" size={18} />
-                          <h3 className="text-lg font-bold text-gray-900">Gestão de Convites</h3>
-                        </div>
-                        <p className="text-sm text-gray-500 mt-1">Acompanhe o status de ativação e o histórico de e-mails enviados.</p>
-                      </div>
-
-                      <ul className="divide-y divide-gray-50">
-                        {pendingInvites.map((invite) => {
-                          const isExpired = new Date(invite.expiresAt) < new Date() && invite.status === 'PENDENTE';
-                          const status = invite.status;
-                          
-                          return (
-                            <li key={invite.id} className="p-6 hover:bg-gray-50/50 transition-colors group">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                    status === 'ACEITO' ? 'bg-emerald-100 text-emerald-600' :
-                                    isExpired ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
-                                  }`}>
-                                    {status === 'ACEITO' ? <CheckCircle2 size={18} /> : 
-                                     isExpired ? <Clock size={18} /> : <Mail size={18} />}
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-bold text-gray-900">{invite.email}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold uppercase tracking-tight">
-                                        {ROLE_LABELS[invite.role as UserRole]}
-                                      </span>
-                                      <span className="text-[10px] text-gray-400">•</span>
-                                      {status === 'ACEITO' ? (
-                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                          Ativado
-                                        </span>
-                                      ) : isExpired ? (
-                                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                                          Expirado
-                                        </span>
-                                      ) : (
-                                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                                          Pendente (24h)
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {status === 'PENDENTE' && !isExpired && (
-                                    <button
-                                      onClick={() => {
-                                        const link = `${window.location.origin}/invite?token=${invite.token}`;
-                                        navigator.clipboard.writeText(link);
-                                        toast.success("Link copiado para a área de transferência!");
-                                      }}
-                                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
-                                      title="Copiar Link"
-                                    >
-                                      <Copy size={16} />
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => handleDeleteInvite(invite.id)}
-                                    className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-600 transition-colors"
-                                    title="Excluir Convite"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-sm font-bold text-gray-900">Níveis de Acesso</h2>
-                    <div className="flex items-center gap-2">
-                      {groups.length === 0 && !loading && (
-                        <button
-                          onClick={handleSeedGroups}
-                          disabled={isSubmitting}
-                          className="flex items-center gap-2 text-xs font-semibold text-blue-600 bg-blue-50 rounded-xl px-3.5 py-2 hover:bg-blue-100 transition-colors disabled:opacity-50"
-                        >
-                          {isSubmitting ? <Loader2 size={12} className="animate-spin" /> : <Settings2 size={12} />}
-                          Inicializar Grupos
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openGroupModal()}
-                        className="flex items-center gap-2 text-xs font-semibold text-white bg-blue-600 rounded-xl px-3.5 py-2 hover:bg-blue-700 transition-colors"
-                      >
-                        <Plus size={12} />
-                        Novo Grupo
-                      </button>
-                    </div>
-                  </div>
-
-                  {loading ? (
-                    <div className="p-12 flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="animate-spin text-blue-600" size={24} />
-                      <p className="text-xs text-gray-500">Carregando grupos...</p>
-                    </div>
-                  ) : (
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50/50">
-                          <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Grupo</th>
-                          <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Usuários</th>
-                          <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Permissões</th>
-                          <th className="px-6 py-3 text-right"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {groups.map((group) => (
-                          <tr key={group.id} className="hover:bg-gray-50/30 transition-colors group">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-bold text-[10px]">
-                                  {group.name[0]}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-gray-900 truncate">{group.name}</p>
-                                  <p className="text-[10px] text-gray-500 truncate">{group.description}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800">
-                                {group._count?.users ?? 0} Membros
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700">
-                                {group.permissions?.length ?? 0} Ativas
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  onClick={() => openGroupModal(group)}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                  title="Editar Grupo"
-                                >
-                                  <MoreVertical size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteGroup(group.id)}
-                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                  title="Excluir Grupo"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
-            </div>
+            <TeamSettings 
+              groups={groups}
+              users={users}
+              invites={invites}
+              isLoading={isLoading}
+              onRefresh={fetchData}
+              internalRoles={INTERNAL_ROLES}
+              availablePermissions={AVAILABLE_PERMISSIONS}
+            />
           )}
 
           {/* ── Integrações ── */}
@@ -775,194 +299,6 @@ export default function ConfiguracoesPage() {
           )}
         </div>
       </div>
-
-      {/* Group Configuration Modal */}
-      {isGroupModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden border border-gray-100 animate-in fade-in zoom-in duration-200">
-            <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                  <Settings2 size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Configurar Grupo</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {editingGroup ? "Edite as configurações do grupo." : "Defina o nome e as regras de acesso."}
-                  </p>
-                </div>
-              </div>
-              <button onClick={closeGroupModal} className="text-gray-400 hover:text-gray-600 p-2">
-                <Plus size={24} className="rotate-45" />
-              </button>
-            </div>
-
-            <div className="p-8 space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Nome do Grupo</label>
-                  <input
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Ex: Time de QA, Editores de Conteúdo..."
-                    className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Descrição</label>
-                  <textarea
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                    placeholder="Para que serve este grupo?"
-                    rows={2}
-                    className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-gray-300 resize-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Permissões Selecionadas</label>
-                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                  {AVAILABLE_PERMISSIONS.map(perm => {
-                    const isSelected = selectedPermissions.includes(perm.id);
-                    return (
-                      <label
-                        key={perm.id}
-                        className={`flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer group ${isSelected ? 'border-blue-500 bg-blue-50/50' : 'border-gray-100 hover:border-blue-200 hover:bg-blue-50/30'
-                          }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => togglePermission(perm.id)}
-                          className="mt-1 w-4 h-4 rounded-md border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <div>
-                          <p className={`text-sm font-bold transition-colors ${isSelected ? 'text-blue-700' : 'text-gray-800 group-hover:text-blue-700'}`}>
-                            {perm.label}
-                          </p>
-                          <p className={`text-[11px] ${isSelected ? 'text-blue-600/70' : 'text-gray-500'}`}>
-                            {perm.desc}
-                          </p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
-              <button
-                onClick={closeGroupModal}
-                disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-200 transition-all disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveGroup}
-                disabled={isSubmitting || !newName}
-                className="px-6 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSubmitting && <Loader2 size={14} className="animate-spin" />}
-                {editingGroup ? "Atualizar Grupo" : "Salvar Grupo"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* User Editing Modal */}
-      {isUserModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-gray-100 animate-in fade-in zoom-in duration-200">
-            <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                  <UserCog size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Editar Colaborador</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{editingUser?.email}</p>
-                </div>
-              </div>
-              <button onClick={closeUserModal} className="text-gray-400 hover:text-gray-600 p-2">
-                <Plus size={24} className="rotate-45" />
-              </button>
-            </div>
-
-            <div className="p-8 space-y-6">
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Nível de Cargo</label>
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all bg-white text-sm font-semibold"
-                >
-                  {MANAGEABLE_ROLES.map((role) => (
-                    <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-gray-500 mt-2 ml-1">
-                  <strong>Poder:</strong> {ROLE_HINTS[selectedRole]}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Grupo de Acesso</label>
-                <select
-                  value={selectedGroupId || ""}
-                  onChange={(e) => setSelectedGroupId(e.target.value || null)}
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all bg-white text-sm font-semibold"
-                >
-                  <option value="">Sem Grupo (Acesso Padrão)</option>
-                  {groups.map((group) => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
-              <button
-                onClick={closeUserModal}
-                disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-200 transition-all disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveUser}
-                disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-100 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSubmitting && <Loader2 size={14} className="animate-spin" />}
-                Salvar Alterações
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <InviteModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        onSuccess={() => fetchData()}
-        groups={groups}
-        internalRoles={Object.fromEntries(
-          Object.entries(ROLE_LABELS).filter(([role]) => MANAGEABLE_ROLES.includes(role as any))
-        )}
-      />
-      <ConfirmationModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmModal.onConfirm}
-        title={confirmModal.title}
-        description={confirmModal.description}
-        type={confirmModal.type}
-        confirmText={confirmModal.confirmText}
-        isLoading={isSubmitting}
-      />
     </div>
   );
 }

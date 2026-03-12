@@ -26,6 +26,25 @@ export const ROLE_LABELS: Record<UserRole, string> = {
     [UserRole.INVESTIDOR]: "Investidor",
 };
 
+export interface TeamUser {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+    role: UserRole;
+    groupId: string | null;
+}
+
+export interface TeamInvite {
+    id: string;
+    email: string;
+    role: UserRole;
+    groupId: string | null;
+    token: string;
+    expiresAt: Date;
+    status: string;
+}
+
 export class TeamService {
     /**
      * Lista todos os grupos com contagem de usuários.
