@@ -12,7 +12,7 @@ function InviteContent() {
   const token = searchParams.get("token");
 
   const [invite, setInvite] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(true);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
