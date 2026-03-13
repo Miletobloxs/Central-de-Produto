@@ -90,14 +90,26 @@ function InviteContent() {
       if (acceptData.error) throw new Error(acceptData.error);
 
       toast.success("Bem-vindo(a)!", {
-        description: "Seu cadastro foi concluído com sucesso."
+        description: "Seu cadastro foi concluído com sucesso. Redirecionando..."
       });
 
-      router.push("/dashboard");
-      router.refresh();
+      // Auto-redirect after 3s to let them see success
+      setTimeout(() => {
+        router.push("/dashboard");
+        router.refresh();
+      }, 3000);
     } catch (err: any) {
       console.error("Invite Error:", err);
-      setError(err.message || "Falha ao concluir cadastro.");
+      const isAlreadyRegistered = err.message?.includes("User already registered");
+      
+      if (isAlreadyRegistered) {
+        setError("Este e-mail já está cadastrado no sistema.");
+        toast.info("E-mail já cadastrado", {
+          description: "Você já possui uma conta. Tente fazer login diretamente."
+        });
+      } else {
+        setError(err.message || "Falha ao concluir cadastro.");
+      }
       setLoading(false);
     }
   }

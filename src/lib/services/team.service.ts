@@ -47,6 +47,15 @@ export interface TeamInvite {
 
 export class TeamService {
     /**
+     * Busca um usuário pelo ID.
+     */
+    async getUserById(id: string): Promise<TeamUser | null> {
+        return await (prisma as any).user.findUnique({
+            where: { id },
+        });
+    }
+
+    /**
      * Lista todos os grupos com contagem de usuários.
      */
     async listGroups(): Promise<TeamGroup[]> {

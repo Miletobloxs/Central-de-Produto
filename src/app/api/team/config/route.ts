@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { teamService } from "@/lib/services/team.service";
 import { createClient } from "@/lib/supabase/server";
+import { UserRole } from "@/lib/types/enums";
 
 export async function GET() {
     try {
@@ -37,9 +38,41 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
+        const supabase = await createClient();
         const body = await request.json();
         const { action, id, data } = body;
 
+        // 1. Ações Públicas (Exceções)
+        if (['validateInvite', 'acceptInvite'].includes(action)) {
+            switch (action) {
+                case 'validateInvite':
+                    const validInvite = await teamService.validateInvite(data.token);
+                    return NextResponse.json(validInvite || { error: "Convite inválido" });
+                case 'acceptInvite':
+                    const userResult = await teamService.acceptInvite(data.token, data.supabaseUser);
+                    return NextResponse.json(userResult);
+            }
+        }
+
+        // 2. Trava de Autenticação para todas as outras ações
+        if (!supabase) {
+            return NextResponse.json({ error: "Falha ao inicializar Supabase" }, { status: 500 });
+        }
+        
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+
+        // 3. Trava de Role (Apenas ADMIN ou SUPER_ADMIN)
+        const dbUser = await teamService.getUserById(authUser.id);
+        const isAdmin = dbUser?.role === UserRole.ADMIN || dbUser?.role === UserRole.SUPER_ADMIN;
+
+        if (!isAdmin) {
+             return NextResponse.json({ error: "Acesso negado: Requer privilégios administrativos." }, { status: 403 });
+        }
+
+        // 4. Ações Administrativas
         switch (action) {
             case 'seed':
                 const seedResult = await teamService.ensureDefaultGroups();
@@ -70,7 +103,9 @@ export async function POST(request: Request) {
                 return NextResponse.json(deleteUserResult);
 
             case 'createInvite':
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+                const host = request.headers.get("host") || "central-de-produto.vercel.app";
+                const protocol = host.includes("localhost") ? "http" : "https";
+                const baseUrl = `${protocol}://${host}`;
                 const inviteResult = await teamService.createInvite({ ...data, baseUrl });
                 return NextResponse.json(inviteResult);
 
@@ -78,16 +113,8 @@ export async function POST(request: Request) {
                 const deleteInviteResult = await teamService.deleteInvite(id);
                 return NextResponse.json(deleteInviteResult);
 
-            case 'validateInvite':
-                const validInvite = await teamService.validateInvite(data.token);
-                return NextResponse.json(validInvite || { error: "Convite inválido" });
-
-            case 'acceptInvite':
-                const userResult = await teamService.acceptInvite(data.token, data.supabaseUser);
-                return NextResponse.json(userResult);
-
             default:
-                return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+                return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
         }
     } catch (error: any) {
         console.error(`API Error [team/config] POST:`, error);
