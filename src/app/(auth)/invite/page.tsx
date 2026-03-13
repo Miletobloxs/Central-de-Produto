@@ -59,6 +59,7 @@ function InviteContent() {
         email: invite.email,
         password: password,
         options: {
+          emailRedirectTo: `${window.location.origin}/login`,
           data: {
             name: invite.email.split('@')[0], // Default name
           }
