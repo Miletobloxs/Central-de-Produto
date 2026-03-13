@@ -271,6 +271,48 @@ export class TeamService {
     }
 
     /**
+     * Aceita um convite e vincula ao usuário do Supabase.
+     */
+    async acceptInvite(token: string, supabaseUser: { id: string, email: string, user_metadata?: any }) {
+        const invite = await this.validateInvite(token);
+        if (!invite) throw new Error("Convite inválido ou expirado.");
+
+        if (invite.email !== supabaseUser.email) {
+            throw new Error("Este convite foi enviado para outro e-mail.");
+        }
+
+        const name = supabaseUser.user_metadata?.name || 
+                     supabaseUser.user_metadata?.full_name || 
+                     supabaseUser.email.split('@')[0];
+
+        // 1. Upsert do usuário com os dados do convite
+        const user = await (prisma as any).user.upsert({
+            where: { email: supabaseUser.email },
+            update: {
+                id: supabaseUser.id,
+                name: name,
+                role: invite.role,
+                groupId: invite.groupId,
+            },
+            create: {
+                id: supabaseUser.id,
+                email: supabaseUser.email,
+                name: name,
+                role: invite.role,
+                groupId: invite.groupId,
+            }
+        });
+
+        // 2. Marcar convite como aceito
+        await (prisma as any).userInvite.update({
+            where: { id: invite.id },
+            data: { status: InviteStatus.ACEITO }
+        });
+
+        return user;
+    }
+
+    /**
      * Garante que os grupos padrão existam.
      */
     async ensureDefaultGroups() {

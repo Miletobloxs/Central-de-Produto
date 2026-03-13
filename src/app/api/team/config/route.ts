@@ -78,6 +78,14 @@ export async function POST(request: Request) {
                 const deleteInviteResult = await teamService.deleteInvite(id);
                 return NextResponse.json(deleteInviteResult);
 
+            case 'validateInvite':
+                const validInvite = await teamService.validateInvite(data.token);
+                return NextResponse.json(validInvite || { error: "Convite inválido" });
+
+            case 'acceptInvite':
+                const userResult = await teamService.acceptInvite(data.token, data.supabaseUser);
+                return NextResponse.json(userResult);
+
             default:
                 return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
