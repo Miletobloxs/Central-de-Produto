@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import type { RoadmapStatus } from "@prisma/client";
 
 export interface CreateEpicDTO {
-    title: string;
+    name: string;
     description?: string;
     stream?: string;
-    status: RoadmapStatus;
+    status?: string;
     priority?: string;
     color?: string;
     startDate?: Date;
@@ -31,11 +30,11 @@ export class RoadmapService {
     async createEpic(data: CreateEpicDTO) {
         return await prisma.epic.create({
             data: {
-                title: data.title,
+                name: data.name,
                 description: data.description,
                 stream: data.stream,
-                status: data.status,
-                priority: data.priority ?? "MEDIUM",
+                status: data.status ?? "planned",
+                priority: data.priority ?? "medium",
                 color: data.color ?? "blue",
                 startDate: data.startDate,
                 endDate: data.endDate,

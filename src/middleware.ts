@@ -46,10 +46,9 @@ export async function middleware(request: NextRequest) {
     }
 
     const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
-    const isDashboardRoute = request.nextUrl.pathname.startsWith("/dashboard") || 
-                           request.nextUrl.pathname.startsWith("/configuracoes") ||
-                           request.nextUrl.pathname.startsWith("/sprints") ||
-                           request.nextUrl.pathname.startsWith("/okrs");
+    const publicPaths = ["/login", "/invite", "/api"];
+    const isPublicPath = publicPaths.some((p) => request.nextUrl.pathname.startsWith(p));
+    const isDashboardRoute = !isPublicPath;
 
     console.log(`DEBUG: [MIDDLEWARE] Path: ${request.nextUrl.pathname} | User: ${user?.email ?? "none"}`);
 

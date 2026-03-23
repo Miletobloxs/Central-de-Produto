@@ -763,7 +763,7 @@ export default function SprintsPage() {
   }
 
   async function createSprint(name: string, goal: string, startDate: string, endDate: string): Promise<string | null> {
-    const payload: Record<string, string> = { name, goal, status: "active" };
+    const payload: Record<string, string> = { name, goal, status: "planning" };
     if (startDate) payload.start_date = startDate;
     if (endDate)   payload.end_date   = endDate;
 

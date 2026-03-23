@@ -13,89 +13,6 @@ datasource db {
 // ENUMS
 // ============================================
 
-enum OfferType {
-  RCVM_88
-  RCVM_175
-}
-
-enum OfferStatus {
-  EM_CAPTACAO
-  COMPLETA
-  ADIMPLENTE
-  INADIMPLENTE
-}
-
-enum TransactionType {
-  APORTE
-  RESGATE
-  JUROS
-}
-
-enum TransactionStatus {
-  APROVADO
-  PENDENTE
-  REJEITADO
-}
-
-enum DocumentType {
-  PROSPECTO
-  CONTRATO
-  RELATORIO
-  ADITIVO
-  PARECER
-  OUTRO
-}
-
-enum DocumentStatus {
-  APROVADO
-  PENDENTE
-  REVISAO_NECESSARIA
-}
-
-enum DocumentVisibility {
-  PUBLICO
-  INTERNO
-}
-
-enum SubmissionStatus {
-  NOVO
-  EM_ANALISE
-  APROVADO
-  REJEITADO
-}
-
-enum KYCStatus {
-  PENDENTE
-  APROVADO
-  REJEITADO
-}
-
-enum EntityStatus {
-  ATIVO
-  INATIVO
-  EM_ANALISE
-  SUSPENSO
-  BLOQUEADO
-  OUTRO
-}
-
-enum PersonType {
-  FISICA
-  JURIDICA
-}
-
-enum DistributorType {
-  CORRETORA
-  BANCO
-  PLATAFORMA
-}
-
-enum RiskProfile {
-  CONSERVADOR
-  MODERADO
-  AGRESSIVO
-}
-
 enum UserRole {
   SUPER_ADMIN
   ADMIN
@@ -108,16 +25,22 @@ enum UserRole {
   INVESTIDOR
 }
 
+enum InviteStatus {
+  PENDENTE
+  ACEITO
+  EXPIRADO
+}
+
 // ============================================
-// CONFIGURAÇÃO DE EQUIPES E ACESSO
+// AUTH & EQUIPE (colunas camelCase — sem @map individual)
 // ============================================
 
 model TeamGroup {
   id          String   @id @default(cuid())
   name        String   @unique
   description String?
-  permissions String[] // Permissões granulares mapeadas no AccessService
-  
+  permissions String[]
+
   users       User[]
 
   createdAt   DateTime @default(now())
@@ -126,38 +49,20 @@ model TeamGroup {
   @@map("team_groups")
 }
 
-// ============================================
-// AUTENTICAÇÃO (Supabase Auth)
-// ============================================
-
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   role      UserRole @default(INVESTIDOR)
   name      String?
   avatar    String?
-  
-  // Customization for Team Roles
+
   groupId   String?
   group     TeamGroup? @relation(fields: [groupId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relacionamentos
-  originatorProfile  Originator?
-  distributorProfile Distributor?
-  assessorProfile    Assessor?
-  investorProfile    InvestorProfile?
-  decisions          Decision[]
-
   @@map("users")
-}
-
-enum InviteStatus {
-  PENDENTE
-  ACEITO
-  EXPIRADO
 }
 
 model UserInvite {
@@ -175,447 +80,207 @@ model UserInvite {
 }
 
 // ============================================
-// OFERTAS
+// PRODUTO — ROADMAP & SPRINTS
 // ============================================
 
-model Offer {
-  id        String      @id @default(cuid())
-  name      String
-  type      OfferType
-  status    OfferStatus @default(EM_CAPTACAO)
-  volume    Decimal     @db.Decimal(15, 2)
-  raised    Decimal     @default(0) @db.Decimal(15, 2)
-  progress  Int         @default(0) // 0-100
-  deadline  DateTime
-  minTicket Decimal     @db.Decimal(15, 2)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-
-  // Foreign Keys
-  originatorId String
-  originator   Originator @relation(fields: [originatorId], references: [id], onDelete: Cascade)
-
-  // Relacionamentos
-  documents    Document[]
-  transactions Transaction[]
-  submissions  Submission[]
-  investors    InvestorOffer[]
-
-  @@index([status])
-  @@index([originatorId])
-  @@index([deadline])
-  @@map("offers")
-}
-
-// ============================================
-// TRANSAÇÕES
-// ============================================
-
-model Transaction {
-  id        String            @id @default(cuid())
-  amount    Decimal           @db.Decimal(15, 2)
-  type      TransactionType
-  status    TransactionStatus @default(PENDENTE)
-  date      DateTime          @default(now())
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-
-  // Foreign Keys
-  offerId    String
-  offer      Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
-  investorId String
-  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
-
-  @@index([offerId])
-  @@index([investorId])
-  @@index([status])
-  @@index([date])
-  @@map("transactions")
-}
-
-// ============================================
-// DOCUMENTOS
-// ============================================
-
-model Document {
-  id         String             @id @default(cuid())
-  name       String
-  type       DocumentType
-  visibility DocumentVisibility @default(PUBLICO)
-  status     DocumentStatus     @default(PENDENTE)
-  size       String // Ex: "2.8 MB"
-  fileUrl    String? // Supabase Storage URL
-  uploadDate DateTime           @default(now())
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-
-  // Foreign Keys
-  offerId String
-  offer   Offer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
-
-  @@index([offerId])
-  @@index([visibility])
-  @@index([status])
-  @@map("documents")
-}
-
-// ============================================
-// SUBMISSÕES
-// ============================================
-
-model Submission {
-  id        String           @id @default(cuid())
-  amount    Decimal          @db.Decimal(15, 2)
-  status    SubmissionStatus @default(NOVO)
-  documents Int              @default(0)
-  date      DateTime         @default(now())
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-
-  // Foreign Keys
-  investorId String
-  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
-  offerId    String
-  offer      Offer           @relation(fields: [offerId], references: [id], onDelete: Cascade)
-
-  @@index([investorId])
-  @@index([offerId])
-  @@index([status])
-  @@index([date])
-  @@map("submissions")
-}
-
-// ============================================
-// PERFIL DO INVESTIDOR
-// ============================================
-
-model InvestorProfile {
-  id          String      @id @default(cuid())
+model Epic {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
-  cpf         String      @unique
-  email       String      @unique
-  phone       String
-  riskProfile RiskProfile
+  description String?
+  stream      String   @default("Plataforma Core")
+  status      String   @default("planned")
+  priority    String   @default("medium")
+  color       String   @default("blue")
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  // Dados Financeiros
-  ticketMedio         Decimal @db.Decimal(15, 2)
-  totalInvested       Decimal @default(0) @db.Decimal(15, 2)
-  numberOfInvestments Int     @default(0)
-  portfolioValue      Decimal @default(0) @db.Decimal(15, 2)
-  grossIncome         Decimal @db.Decimal(15, 2)
-  monthlyExpense      Decimal @db.Decimal(15, 2)
-  netWorth            Decimal @db.Decimal(15, 2)
+  sprints     Sprint[]
 
-  // Status
-  kycStatus           KYCStatus @default(PENDENTE)
-  documentationStatus String    @default("Incompleta") // Completa/Incompleta
-
-  registrationDate DateTime @default(now())
-  lastUpdated      DateTime @updatedAt
-  createdAt        DateTime @default(now())
-
-  // Foreign Keys
-  userId String? @unique
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  // Relacionamentos
-  transactions Transaction[]
-  submissions  Submission[]
-  offers       InvestorOffer[]
-
-  @@index([cpf])
-  @@index([email])
-  @@index([kycStatus])
-  @@map("investor_profiles")
+  @@map("epics")
 }
 
-// Tabela de junção N-N entre Investor e Offer
-model InvestorOffer {
-  id             String   @id @default(cuid())
-  amount         Decimal  @db.Decimal(15, 2)
-  investmentDate DateTime @default(now())
-  expectedReturn String // Ex: "12.5% a.a."
-  currentStatus  String // Ex: "Ativo", "Liquidado"
+model Sprint {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  goal       String?
+  status     String    @default("planning")
+  startDate  DateTime? @map("start_date") @db.Date
+  endDate    DateTime? @map("end_date") @db.Date
+  velocity   Int?      @default(0)
+  epicId     String?   @map("epic_id") @db.Uuid
+  epic       Epic?     @relation(fields: [epicId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  investorId String
-  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  tasks         Task[]
+  sprint_reviews SprintReview?
 
-  offerId String
-  offer   Offer  @relation(fields: [offerId], references: [id], onDelete: Cascade)
-
-  @@unique([investorId, offerId])
-  @@index([investorId])
-  @@index([offerId])
-  @@map("investor_offers")
+  @@map("sprints")
 }
 
-// ============================================
-// ORIGINADORES
-// ============================================
+model Task {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String
+  description  String?
+  status       String    @default("todo")
+  priority     String?   @default("medium")
+  storyPoints  Int?      @default(1) @map("story_points")
+  epic         String?
+  assignee     String?
+  sprintId     String?   @map("sprint_id") @db.Uuid
+  sprint       Sprint?   @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  parentTaskId String?   @map("parent_task_id") @db.Uuid
+  parent       Task?     @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks     Task[]    @relation("TaskSubtasks")
+  position     Int?      @default(0)
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-model Originator {
-  id               String       @id @default(cuid())
-  name             String
-  cnpj             String       @unique
-  type             PersonType
-  email            String       @unique
-  phone            String
-  totalEmitted     Decimal      @default(0) @db.Decimal(15, 2)
-  activeOffers     Int          @default(0)
-  status           EntityStatus @default(ATIVO)
-  registrationDate DateTime     @default(now())
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-
-  // Foreign Keys
-  userId String? @unique
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  // Relacionamentos
-  offers Offer[]
-
-  @@index([cnpj])
-  @@index([status])
-  @@map("originators")
+  @@index([sprintId])
+  @@map("tasks")
 }
 
-// ============================================
-// DISTRIBUIDORES
-// ============================================
+model SprintReview {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sprintId  String    @unique @map("sprint_id") @db.Uuid
+  theme     String?
+  blockers  String[]  @default([])
+  learnings String[]  @default([])
+  highlights Json?    @default("[]")
+  nextTheme String?   @map("next_theme")
+  nextItems String[]  @default([]) @map("next_items")
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-model Distributor {
-  id               String          @id @default(cuid())
-  name             String
-  cnpj             String          @unique
-  type             DistributorType
-  email            String          @unique
-  phone            String
-  totalDistributed Decimal         @default(0) @db.Decimal(15, 2)
-  activeOffers     Int             @default(0)
-  commission       String // Ex: "1.5%"
-  status           EntityStatus    @default(ATIVO)
-  certifications   String[] // Ex: ["CVM", "ANBIMA", "B3"]
-  registrationDate DateTime        @default(now())
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  sprint    Sprint    @relation(fields: [sprintId], references: [id], onDelete: Cascade)
 
-  // Foreign Keys
-  userId String? @unique
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@map("sprint_reviews")
+}
 
-  @@index([cnpj])
-  @@index([status])
-  @@map("distributors")
+model BacklogItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String
+  description    String?
+  moscowPriority String   @default("could") @map("moscow_priority")
+  storyPoints    Int      @default(1) @map("story_points")
+  businessValue  Int      @default(3) @map("business_value")
+  epic           String?
+  status         String   @default("open")
+  assignee       String?
+  sprintId       String?  @map("sprint_id") @db.Uuid
+  position       Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("backlog_items")
 }
 
 // ============================================
-// EMPRESAS (ESCRITÓRIOS)
+// PRODUTO — OKRs
 // ============================================
 
-model Company {
-  id               String       @id @default(cuid())
-  name             String
-  cnpj             String       @unique
-  email            String       @unique
-  phone            String
-  address          String
-  totalClients     Int          @default(0)
-  activeAssessors  Int          @default(0)
-  totalDistributed Decimal      @default(0) @db.Decimal(15, 2)
-  commission       String // Ex: "1.5%"
-  status           EntityStatus @default(ATIVO)
-  registrationDate DateTime     @default(now())
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+model Objective {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String
+  description String?
+  quarter     String
+  status      String    @default("on_track")
+  owner       String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  // Relacionamentos
-  assessors Assessor[]
+  keyResults  KeyResult[]
 
-  @@index([cnpj])
-  @@index([status])
-  @@map("companies")
+  @@map("objectives")
 }
 
-// ============================================
-// ASSESSORES
-// ============================================
+model KeyResult {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  objectiveId     String    @map("objective_id") @db.Uuid
+  objective       Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  targetValue     Decimal   @default(100) @map("target_value")
+  currentValue    Decimal   @default(0) @map("current_value")
+  unit            String    @default("%")
+  status          String    @default("on_track")
+  dashboardMetric String?   @map("dashboard_metric")
+  owner           String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-model Assessor {
-  id               String       @id @default(cuid())
-  name             String
-  cpf              String       @unique
-  email            String       @unique
-  phone            String
-  registration     String // Ex: "CVM-12345"
-  totalClients     Int          @default(0)
-  activeContracts  Int          @default(0)
-  totalDistributed Decimal      @default(0) @db.Decimal(15, 2)
-  commission       String // Ex: "0.8%"
-  status           EntityStatus @default(ATIVO)
-  certifications   String[] // Ex: ["CVM", "ANCORD", "CFP"]
-  registrationDate DateTime     @default(now())
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  checkins  Checkin[]
 
-  // Foreign Keys (companyId pode ser null para assessores independentes)
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  @@map("key_results")
+}
 
-  userId String? @unique
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+model Checkin {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  keyResultId  String   @map("key_result_id") @db.Uuid
+  keyResult    KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  value        Decimal
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  // Relacionamentos
-  clients EndClient[]
-
-  @@index([cpf])
-  @@index([companyId])
-  @@index([status])
-  @@map("assessors")
+  @@map("checkins")
 }
 
 // ============================================
-// CLIENTES FINAIS
-// ============================================
-
-model EndClient {
-  id                String       @id @default(cuid())
-  name              String
-  cpf               String       @unique
-  email             String       @unique
-  phone             String
-  investmentProfile RiskProfile
-  totalInvested     Decimal      @default(0) @db.Decimal(15, 2)
-  activeInvestments Int          @default(0)
-  portfolioValue    Decimal      @default(0) @db.Decimal(15, 2)
-  status            EntityStatus @default(ATIVO)
-  registrationDate  DateTime     @default(now())
-  lastInvestment    DateTime?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-
-  // Foreign Keys
-  assessorId String
-  assessor   Assessor @relation(fields: [assessorId], references: [id], onDelete: Cascade)
-
-  @@index([cpf])
-  @@index([assessorId])
-  @@index([status])
-  @@map("end_clients")
-}
-
-// ============================================
-// ENUMS: PRODUTO & OPERAÇÕES
-// ============================================
-
-enum ReleaseStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-enum FlagType {
-  release
-  experiment
-  kill_switch
-}
-
-enum ChangelogType {
-  feature
-  improvement
-  fix
-  breaking
-}
-
-enum RoadmapStatus {
-  BACKLOG
-  DISCOVERY
-  DEVELOPMENT
-  READY
-  RELEASED
-}
-
-enum DecisionStatus {
-  PROPOSED
-  ACCEPTED
-  SUPERSEDED
-  DEPRECATED
-}
-
-enum IncidentSeverity {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum IncidentStatus {
-  REPORTED
-  INVESTIGATING
-  IDENTIFIED
-  MONITORING
-  RESOLVED
-}
-
-// ============================================
-// WORKFLOWS DE PRODUTO
+// PRODUTO — RELEASES
 // ============================================
 
 model Release {
-  id          String        @id @default(cuid())
-  version     String        @unique
-  sprint      String?
-  summary     String?       @db.Text
-  date        DateTime      @default(now())
-  visibility  String        @default("public") // 'public' | 'internal'
-  status      ReleaseStatus @default(DRAFT)
-  publishDate DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version     String   @unique
+  summary     String?
+  visibility  String   @default("internal")
+  sprintName  String?  @map("sprint_name")
+  releasedAt  DateTime @default(now()) @map("released_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  changelog ChangelogEntry[]
+  changelog   ChangelogItem[]
 
   @@map("releases")
 }
 
-model ChangelogEntry {
-  id          String        @id @default(cuid())
-  type        ChangelogType @default(feature)
+model ChangelogItem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  releaseId   String   @map("release_id") @db.Uuid
+  release     Release  @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  type        String   @default("feature")
   title       String
-  description String        @db.Text
-  taskId      String?
-  releaseId   String
-  release     Release       @relation(fields: [releaseId], references: [id], onDelete: Cascade)
-  createdAt   DateTime      @default(now())
+  description String?
+  taskId      String?  @map("task_id")
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@map("changelog_entries")
+  @@map("changelog_items")
 }
 
+// ============================================
+// PRODUTO — FEATURE FLAGS
+// ============================================
+
 model FeatureFlag {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  label       String
-  description String?  @db.Text
-  type        FlagType @default(release)
-
-  // Status por ambiente (JSON ou tabelas relacionadas)
-  // Para simplificar e manter performance:
-  isDev     Boolean @default(false)
-  isStaging Boolean @default(false)
-  isProd    Boolean @default(false)
-
-  rollout  Int      @default(0) // 0-100
-  segments String[] // Array de segmentos (ex: ["Enterprise", "RCVM 175"])
-
-  lastModified     DateTime @default(now())
-  modifiedBy       String?
-  modifiedInitials String?
-  modifiedColor    String? // Classe CSS de cor (ex: "bg-amber-200 text-amber-800")
-
-  linkedEpic String?
-  epicColor  String? // Classe CSS (ex: "bg-blue-100 text-blue-700")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  key              String   @unique
+  label            String
+  description      String?
+  type             String   @default("release")
+  isDev            Boolean  @default(false) @map("is_dev")
+  isStaging        Boolean  @default(false) @map("is_staging")
+  isProd           Boolean  @default(false) @map("is_prod")
+  rollout          Int      @default(0)
+  segments         String[]
+  lastModified     DateTime @default(now()) @map("last_modified") @db.Timestamptz(6)
+  modifiedBy       String?  @map("modified_by")
+  modifiedInitials String?  @map("modified_initials")
+  modifiedColor    String?  @map("modified_color")
+  linkedEpic       String?  @map("linked_epic")
+  epicColor        String?  @map("epic_color")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   audits FlagAudit[]
 
@@ -624,241 +289,208 @@ model FeatureFlag {
 
 model FlagAudit {
   id            String      @id @default(cuid())
-  flagId        String
+  flagId        String      @map("flag_id")
   flag          FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
-  action        String // Ex: "CREATED", "TOGGLED_ENV", "UPDATED_ROLLOUT", "MODIFIED"
-  environment   String? // Ex: "dev", "staging", "prod"  
-  previousValue String?     @db.Text
-  newValue      String?     @db.Text
-  userId        String?
-  userName      String?
-  createdAt     DateTime    @default(now())
+  action        String
+  environment   String?
+  previousValue String?     @map("previous_value")
+  newValue      String?     @map("new_value")
+  userId        String?     @map("user_id")
+  userName      String?     @map("user_name")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([flagId])
   @@map("flag_audit_logs")
 }
 
-model Objective {
-  id               String   @id @default(cuid())
-  title            String
-  description      String?
-  quarter          String
-  status           String   @default("on_track")
-  
-  // -- UI Presentation Fields --
-  owner            String?
-  owner_initials   String?
-  owner_avatar_color String?
-
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-  
-  key_results      KeyResult[]
-  epics            Epic[]
-
-  @@map("objectives")
-}
-
-model KeyResult {
-  id               String   @id @default(cuid())
-  title            String
-  objective_id     String
-  objective        Objective @relation(fields: [objective_id], references: [id], onDelete: Cascade)
-  
-  target_value     Float
-  current_value    Float    @default(0)
-  unit             String   @default("%")
-  status           String   @default("on_track")
-  
-  // -- UI Fields --
-  dashboard_metric String?
-  linked_value     String?
-  trend_up         Boolean  @default(true)
-  owner            String?
-
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  checkins         Checkin[]
-
-  @@map("key_results")
-}
-
-model Checkin {
-  id               String   @id @default(cuid())
-  key_result_id    String
-  key_result       KeyResult @relation(fields: [key_result_id], references: [id], onDelete: Cascade)
-  value            Float
-  note             String?
-  created_at       DateTime @default(now())
-
-  @@map("checkins")
-}
-
-
-model Epic {
-  id          String        @id @default(cuid())
-  title       String        @default("Epic")
-  description String?
-  status      RoadmapStatus @default(BACKLOG)
-  priority    String        @default("MEDIUM")
-  startDate   DateTime?
-  endDate     DateTime?
-  startMonth  String?
-  endMonth    String?
-  
-  // -- UI Customization Fields --
-  stream      String?
-  color       String?
-
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @default(now()) @updatedAt
-
-  // Foreign Keys
-  okrId String?
-  okr   Objective?    @relation(fields: [okrId], references: [id], onDelete: SetNull)
-
-  sprints      Sprint[]
-
-  @@map("epics")
-}
-
 // ============================================
-// ANÁLISE & INTELIGÊNCIA
+// PRODUTO — DECISÕES (ADR)
 // ============================================
-
-model Sprint {
-  id            String   @id @default(cuid())
-  number        Int?     @unique
-  name          String?
-  goal          String
-  status        String   @default("PLANNING")
-  startDate     DateTime?
-  endDate       DateTime?
-  retrospective String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
-
-  tasks          Task[]
-  sprint_reviews SprintReview?
-
-  epicId String?
-  epic   Epic? @relation(fields: [epicId], references: [id])
-
-  @@map("sprints")
-}
-
-model Adr {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  number       Int       @default(autoincrement())
-  title        String
-  status       String    @default("Draft")
-  context      String?
-  decision     String?
-  justification String?
-  alternatives  String?
-  consequences String?
-  category     String    @default("Arquitetura") // Produto, Arquitetura, Estratégia, Processo
-  tags         String[]  @default([])
-  author       String?
-  created_at   DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
-
-  @@map("adrs")
-}
-
-model SprintReview {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sprint_id  String    @unique
-  theme      String?
-  blockers   String[]  @default([])
-  learnings  String[]  @default([])
-  highlights Json?     @default("[]")
-  next_theme String?
-  next_items String[]  @default([])
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at DateTime? @default(now()) @db.Timestamptz(6)
-
-  sprint     Sprint    @relation(fields: [sprint_id], references: [id], onDelete: Cascade)
-
-  @@map("sprint_reviews")
-}
-
-model Task {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title          String
-  description    String?
-  status         String    @default("todo")
-  priority       String?   @default("medium")
-  type           String?   @default("task")
-  story_points   Int?      @default(1)
-  epic           String?
-  assignee       String?
-  sprint_id      String?
-  position       Int?      @default(0)
-  created_at     DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
-
-  sprint         Sprint?   @relation(fields: [sprint_id], references: [id], onDelete: SetNull)
-
-  @@index([sprint_id])
-  @@map("tasks")
-}
 
 model Decision {
-  id           String         @id @default(cuid())
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adrNumber    Int      @default(autoincrement()) @map("adr_number")
   title        String
-  status       DecisionStatus @default(PROPOSED)
-  context      String         @db.Text
-  decision     String         @db.Text
-  consequences String         @db.Text
-  date         DateTime       @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status       String   @default("open")
+  category     String   @default("produto")
+  decidedBy    String?  @map("decided_by")
+  participants String[] @default([])
+  context      String?
+  decision     String?
+  rationale    String?
+  alternatives Json?    @default("[]")
+  consequences String?
+  epicLink     String?  @map("epic_link")
+  tags         String[] @default([])
+  decidedAt    DateTime @default(now()) @map("decided_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@map("decisions")
 }
 
-model DiscoveryItem {
-  id        String   @id @default(cuid())
-  title     String
-  insight   String   @db.Text
-  source    String? // feedback, research, competitor
-  status    String   @default("NEW") // NEW, VALORIZED, DISCARDED
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("discovery_hub")
-}
-
 // ============================================
-// OBSERVABILIDADE
+// PRODUTO — OBSERVABILIDADE
 // ============================================
 
 model Incident {
-  id          String           @id @default(cuid())
-  title       String
-  severity    IncidentSeverity @default(MEDIUM)
-  status      IncidentStatus   @default(REPORTED)
-  description String           @db.Text
-  timeline    Json? // Eventos do incidente
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  severity      String   @default("medium")
+  status        String   @default("active")
+  affectedUsers Int      @default(0) @map("affected_users")
+  affectedPct   Decimal? @map("affected_pct")
+  components    String[] @default([])
+  rootCause     String?  @map("root_cause")
+  sprintTaskId  String?  @map("sprint_task_id")
+  timeline      Json?    @default("[]")
+  startedAt     DateTime @default(now()) @map("started_at") @db.Timestamptz(6)
+  resolvedAt    DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("incidents")
 }
 
-model Feedback {
-  id         String   @id @default(cuid())
-  rating     Int      @default(0) // 1-5
-  comment    String?  @db.Text
-  userEmail  String?
-  pageSource String?
-  createdAt  DateTime @default(now())
+model ServiceCheck {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceName String   @unique @map("service_name")
+  status      String   @default("operational")
+  latencyMs   Int?     @default(0) @map("latency_ms")
+  uptimePct   Decimal? @default(100) @map("uptime_pct")
+  icon        String?  @default("Globe")
+  notes       String?
+  checkedAt   DateTime @default(now()) @map("checked_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  @@map("feedbacks")
+  @@map("service_checks")
+}
+
+model Bug {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title      String
+  severity   String   @default("medium")
+  status     String   @default("open")
+  sprintId   String?  @map("sprint_id") @db.Uuid
+  epicId     String?  @map("epic_id") @db.Uuid
+  assignee   String?
+  reportedAt DateTime @default(now()) @map("reported_at") @db.Date
+  resolvedAt DateTime? @map("resolved_at") @db.Date
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("bugs")
+}
+
+// ============================================
+// PRODUTO — DISCOVERY
+// ============================================
+
+model Research {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String
+  type         String   @default("interview")
+  status       String   @default("planned")
+  objective    String?
+  participants Int      @default(0)
+  owner        String?
+  epicId       String?  @map("epic_id") @db.Uuid
+  tags         String[] @default([])
+  researchDate DateTime @default(now()) @map("research_date") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  insights     Insight[]
+
+  @@map("researches")
+}
+
+model Insight {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quote      String
+  type       String   @default("behavior")
+  severity   String   @default("medium")
+  researchId String?  @map("research_id") @db.Uuid
+  research   Research? @relation(fields: [researchId], references: [id], onDelete: SetNull)
+  epicId     String?  @map("epic_id") @db.Uuid
+  tags       String[] @default([])
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("insights")
+}
+
+// ============================================
+// PRODUTO — FEEDBACK & NPS
+// ============================================
+
+model FeedbackEntry {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quote        String
+  sentiment    String   @default("neutral")
+  category     String   @default("Geral")
+  source       String   @default("Web")
+  score        Int?
+  epicId       String?  @map("epic_id") @db.Uuid
+  sprintId     String?  @map("sprint_id") @db.Uuid
+  feedbackDate DateTime @default(now()) @map("feedback_date") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("feedback_entries")
+}
+
+model NpsMonthly {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  month          String   @unique
+  score          Decimal
+  totalResponses Int      @default(0) @map("total_responses")
+  promoters      Int      @default(0)
+  neutrals       Int      @default(0)
+  detractors     Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("nps_monthly")
+}
+
+// ============================================
+// PRODUTO — COMPETITIVE INTELLIGENCE
+// ============================================
+
+model Competitor {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  shortName       String   @map("short_name")
+  color           String   @default("bg-gray-100 text-gray-800")
+  threat          String   @default("médio")
+  differentiation String?
+  users           String?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  moves           CompetitiveMove[]
+
+  @@map("competitors")
+}
+
+model CompetitiveFeature {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  feature      String
+  category     String   @default("Plataforma")
+  bloxs        String   @default("unavailable")
+  availability Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("competitive_features")
+}
+
+model CompetitiveMove {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  competitorId String     @map("competitor_id") @db.Uuid
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  type         String     @default("feature")
+  description  String
+  impact       String     @default("médio")
+  moveDate     String     @map("move_date")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("competitive_moves")
 }

@@ -166,7 +166,7 @@ function EpicModal({
 
     try {
       const epic = await createEpicAction({
-        title: form.title.trim(),
+        name: form.title.trim(),
         description: form.description.trim() || undefined,
         stream: form.stream,
         status: form.status as any,
