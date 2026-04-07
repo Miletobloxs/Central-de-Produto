@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import SupportFAB from "@/components/layout/SupportFAB";
+import { teamService } from "@/lib/services/team.service";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,14 @@ export default async function AppLayout({
     redirect("/login");
   }
 
-  // ── USER SYNCHRONIZATION (Temporarily disabled to isolate build crash) ──
+  // ── USER SYNCHRONIZATION ──
+  // Upsert the Supabase Auth user into the internal users table so that
+  // role-based access checks in Server Actions work correctly.
+  try {
+    await teamService.syncUser(user);
+  } catch (err) {
+    console.error("WARN: [APP_LAYOUT] syncUser failed (non-fatal):", err);
+  }
 
   const displayName =
     user?.user_metadata?.name ??

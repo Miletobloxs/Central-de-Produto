@@ -16,13 +16,16 @@ interface FeatureFlag {
   label: string;
   description: string | null;
   type: FlagType;
-  active: boolean;
+  // Per-environment toggles — Prisma maps is_dev/is_staging/is_prod
+  isDev: boolean;
+  isStaging: boolean;
+  isProd: boolean;
   rollout: number;
   segments: string[];
-  modified_by: string | null;
-  epic_id: string | null;
-  created_at: string;
-  updated_at: string;
+  modifiedBy: string | null;
+  linkedEpic: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Epic {
@@ -302,14 +305,17 @@ export default function FeatureFlagsPage() {
   const experimentCount = flags.filter((f) => f.type === "experiment").length;
   const inactiveCount = flags.length - activeCount;
 
-  async function toggleFlag(flag: any) {
+  async function toggleFlag(flag: FeatureFlag) {
     if (toggling) return;
     setToggling(flag.id);
 
     try {
       const currentActive = activeByEnv(flag);
       const targetEnv = env === "production" ? "prod" : env;
-      await toggleFlagAction(flag.id, targetEnv as any, !currentActive);
+      const result = await toggleFlagAction(flag.id, targetEnv as any, !currentActive);
+      if (!result.success) {
+        console.error("Error toggling flag:", result.error);
+      }
       await fetchAll();
     } catch (error) {
       console.error("Error toggling flag:", error);
@@ -427,15 +433,16 @@ export default function FeatureFlagsPage() {
               const typeCfg = flagTypeConfig[flag.type];
               const rolloutColor =
                 flag.rollout === 0 ? "bg-gray-200" : flag.rollout === 100 ? "bg-emerald-500" : "bg-blue-500";
-              const epic = flag.epic_id ? epicMap[flag.epic_id] : null;
               const isToggling = toggling === flag.id;
-              const initials = flag.modified_by
-                ? flag.modified_by.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()
+              const isActiveInEnv = activeByEnv(flag);
+              const modBy = flag.modifiedBy;
+              const initials = modBy
+                ? modBy.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase()
                 : "";
               return (
                 <div
                   key={flag.id}
-                  className={`px-6 py-4 transition-colors ${!flag.active ? "opacity-60" : ""} hover:bg-gray-50/50`}
+                  className={`px-6 py-4 transition-colors ${!isActiveInEnv ? "opacity-60" : ""} hover:bg-gray-50/50`}
                 >
                   <div className="flex items-start gap-4">
                     {/* Toggle */}
@@ -443,7 +450,7 @@ export default function FeatureFlagsPage() {
                       <button
                         onClick={() => toggleFlag(flag)}
                         disabled={isToggling || !canManage}
-                        className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${flag.active ? "bg-emerald-500" : "bg-gray-200"} ${!canManage ? "cursor-not-allowed opacity-60" : ""}`}
+                        className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${isActiveInEnv ? "bg-emerald-500" : "bg-gray-200"} ${!canManage ? "cursor-not-allowed opacity-60" : ""}`}
                       >
                         {isToggling ? (
                           <Loader2
@@ -452,7 +459,7 @@ export default function FeatureFlagsPage() {
                           />
                         ) : (
                           <div
-                            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${flag.active ? "translate-x-5" : "translate-x-0.5"
+                            className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${isActiveInEnv ? "translate-x-5" : "translate-x-0.5"
                               }`}
                           />
                         )}
@@ -467,12 +474,7 @@ export default function FeatureFlagsPage() {
                         >
                           {typeCfg.label}
                         </span>
-                        {epic && (
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${epic.color}`}>
-                            {epic.name}
-                          </span>
-                        )}
-                        {!flag.active && (
+                        {!isActiveInEnv && (
                           <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                             Desabilitada
                           </span>
@@ -524,18 +526,18 @@ export default function FeatureFlagsPage() {
 
                     {/* Meta */}
                     <div className="w-28 shrink-0 text-right">
-                      {flag.modified_by && (
+                      {modBy && (
                         <div className="flex items-center justify-end gap-1.5 mb-1">
                           <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold bg-gray-200 text-gray-600">
                             {initials}
                           </div>
-                          <span className="text-[11px] text-gray-500">{flag.modified_by}</span>
+                          <span className="text-[11px] text-gray-500">{modBy}</span>
                         </div>
                       )}
                       <div className="flex items-center justify-end gap-1 text-[10px] text-gray-400">
                         <Clock size={10} />
                         <span>
-                          {new Date(flag.updated_at).toLocaleDateString("pt-BR", {
+                          {new Date(flag.updatedAt).toLocaleDateString("pt-BR", {
                             day: "2-digit",
                             month: "short",
                           })}

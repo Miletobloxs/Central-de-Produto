@@ -164,7 +164,7 @@ function EpicModal({
     setError("");
 
     try {
-      const epic = await createEpicAction({
+      const result = await createEpicAction({
         name: form.title.trim(),
         description: form.description.trim() || undefined,
         stream: form.stream,
@@ -174,6 +174,13 @@ function EpicModal({
         startDate: form.start_date ? new Date(form.start_date) : undefined,
         endDate: form.end_date ? new Date(form.end_date) : undefined,
       });
+
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+
+      const epic = result.data;
 
       if (selectedSprintIds.length > 0) {
         await linkSprintsToEpicAction(selectedSprintIds, epic.id);
