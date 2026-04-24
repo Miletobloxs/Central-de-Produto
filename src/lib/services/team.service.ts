@@ -260,17 +260,21 @@ export class TeamService {
                          supabaseUser.user_metadata?.full_name || 
                          supabaseUser.email.split('@')[0];
 
-            return await (prisma as any).user.upsert({
+            // First user to ever sync gets SUPER_ADMIN so they can configure the platform
+        const userCount = await (prisma as any).user.count();
+        const defaultRole = userCount === 0 ? UserRole.SUPER_ADMIN : UserRole.BLOXXS_TEAM;
+
+        return await (prisma as any).user.upsert({
                 where: { email: supabaseUser.email },
                 update: {
                     name: name,
-                    // Note: We don't overwrite the role or groupId here to maintain persistence
+                    // Don't overwrite role or groupId to preserve admin changes
                 },
                 create: {
                     id: supabaseUser.id,
                     email: supabaseUser.email,
                     name: name,
-                    role: UserRole.BLOXXS_TEAM, // Default role for new synced users
+                    role: defaultRole,
                 }
             });
         } catch (error) {

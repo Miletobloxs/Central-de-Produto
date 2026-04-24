@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Target,
@@ -11,7 +12,6 @@ import {
   Tag,
   MessageSquare,
   Settings,
-  HelpCircle,
   BarChart3,
   Activity,
   AlertOctagon,
@@ -20,9 +20,10 @@ import {
   Flag,
   FileText,
   GitBranch,
-  Users,
+  ShieldAlert,
 } from "lucide-react";
-import { accessService, Permission } from "@/lib/services/access.service";
+import { accessService, type Permission, type UserAccessInfo } from "@/lib/services/access.service";
+import { getCurrentUserAction } from "@/lib/actions/auth.actions";
 
 type NavItem = {
   href: string;
@@ -46,38 +47,45 @@ const navGroups: NavGroup[] = [
   {
     label: "Planejamento",
     items: [
-      { href: "/okrs", label: "OKRs & Metas", icon: Target },
-      { href: "/roadmap", label: "Roadmap", icon: Map },
-      { href: "/backlog", label: "Backlog", icon: ListTodo },
+      { href: "/okrs",     label: "OKRs & Metas", icon: Target   },
+      { href: "/roadmap",  label: "Roadmap",       icon: Map      },
+      { href: "/backlog",  label: "Backlog",        icon: ListTodo },
     ],
   },
   {
     label: "Execução",
     items: [
-      { href: "/sprints", label: "Sprints", icon: Zap },
-      { href: "/releases", label: "Releases", icon: Tag },
-      { href: "/flags", label: "Feature Flags", icon: Flag },
+      { href: "/sprints",  label: "Sprints",        icon: Zap   },
+      { href: "/releases", label: "Releases",        icon: Tag   },
+      { href: "/flags",    label: "Feature Flags",   icon: Flag  },
     ],
   },
   {
     label: "Análise",
     items: [
-      { href: "/analytics", label: "Analytics", icon: BarChart3 },
-      { href: "/feedback", label: "Feedback / NPS", icon: MessageSquare },
+      { href: "/analytics", label: "Analytics",     icon: BarChart3     },
+      { href: "/feedback",  label: "Feedback / NPS", icon: MessageSquare },
     ],
   },
   {
     label: "Comunicação",
     items: [
-      { href: "/sprint-review", label: "Sprint Review", icon: FileText },
-      { href: "/decisions", label: "Mural de Decisões", icon: GitBranch },
+      { href: "/sprint-review", label: "Sprint Review",     icon: FileText  },
+      { href: "/decisions",     label: "Mural de Decisões", icon: GitBranch },
     ],
   },
   {
     label: "Descoberta",
     items: [
-      { href: "/discovery", label: "Discovery Hub", icon: BookOpen },
-      { href: "/competitive", label: "Competitive Intel.", icon: Building2 },
+      { href: "/discovery",   label: "Discovery Hub",       icon: BookOpen  },
+      { href: "/competitive", label: "Competitive Intel.",   icon: Building2 },
+    ],
+  },
+  {
+    label: "Observabilidade",
+    items: [
+      { href: "/health",    label: "Health Monitor", icon: Activity     },
+      { href: "/incidents", label: "Incidentes",     icon: ShieldAlert  },
     ],
   },
   {
@@ -90,9 +98,20 @@ const navGroups: NavGroup[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [user, setUser] = useState<UserAccessInfo | null>(null);
+
+  useEffect(() => {
+    getCurrentUserAction().then((u) => setUser(u ?? null));
+  }, []);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
+
+  const canSee = (item: NavItem) => {
+    if (!item.requiredPermission) return true;
+    if (!user) return false;
+    return accessService.can(user, item.requiredPermission);
+  };
 
   return (
     <aside className="w-64 min-w-64 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
@@ -117,14 +136,7 @@ export default function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-4 pt-4 pb-2 overflow-y-auto space-y-4">
         {navGroups.map((group, gi) => {
-          // Filtrar itens do grupo com base nas permissões
-          const visibleItems = group.items.filter(item => {
-            if (!item.requiredPermission) return true;
-            // Mock do usuário atual (será Admin para este exemplo)
-            const mockUser = { role: 'ADMIN' as any };
-            return accessService.can(mockUser, item.requiredPermission);
-          });
-
+          const visibleItems = group.items.filter(canSee);
           if (visibleItems.length === 0) return null;
 
           return (
@@ -142,10 +154,11 @@ export default function Sidebar() {
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${active
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                          }`}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                          active
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        }`}
                       >
                         <Icon size={15} strokeWidth={active ? 2.5 : 2} />
                         {item.label}
@@ -158,7 +171,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
     </aside>
   );
 }

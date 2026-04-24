@@ -85,15 +85,19 @@ function NewFlagModal({
     setSaving(true);
 
     try {
-      const segmentList = form.segments.split(",").map((s) => s.trim()).filter(Boolean);
-      await createFlagAction({
+      const segmentList = form.segments.split(",").map((s: string) => s.trim()).filter(Boolean);
+      const result = await createFlagAction({
         key: form.key.trim(),
         label: form.label.trim(),
         description: form.description.trim() || undefined,
-        type: form.type as any, // Mapeando type para killer_switch se necessário, mas o enum no schema é release/experiment/kill_switch
+        type: form.type as any,
         rollout: form.rollout,
         segments: segmentList,
       });
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
       onSave();
       onClose();
     } catch (err: any) {

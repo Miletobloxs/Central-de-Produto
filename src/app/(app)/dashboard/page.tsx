@@ -84,6 +84,9 @@ export default function DashboardPage() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
 
+  const now = new Date();
+  const currentQuarter = `Q${Math.ceil((now.getMonth() + 1) / 3)} ${now.getFullYear()}`;
+
   const [activeSprint, setActiveSprint] = useState<Sprint | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [backlogCount, setBacklogCount] = useState(0);
@@ -139,7 +142,7 @@ export default function DashboardPage() {
       const { data: objData } = await supabase
         .from("objectives")
         .select("*, key_results(*)")
-        .eq("quarter", "Q1 2026");
+        .eq("quarter", currentQuarter);
       setObjectives(objData ?? []);
     } catch (err) {
       console.error("DEBUG: fetchDashboard failed:", err);
@@ -229,7 +232,7 @@ export default function DashboardPage() {
             iconColor="text-amber-600"
           />
           <KPICard
-            label="OKRs Q1 2026"
+            label="OKRs {currentQuarter}"
             value={`${okrProgress}%`}
             sub={`${objectives.length} objetivos ativos`}
             icon={Target}
