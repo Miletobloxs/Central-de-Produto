@@ -54,6 +54,8 @@ export interface Objective {
   quarter: string;
   status: OKRStatus;
   owner?: string;
+  epic_id?: string | null;
+  epic?: { id: string; name: string; color: string } | null;
   created_at: string;
   key_results?: KeyResult[];
 }

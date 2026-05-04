@@ -14,6 +14,15 @@ export async function getEpicsAction() {
     }
 }
 
+export async function getEpicsListAction() {
+    try {
+        return await roadmapService.getEpicsList();
+    } catch (err: any) {
+        console.error("[getEpicsListAction]", err);
+        return [];
+    }
+}
+
 export async function createEpicAction(data: CreateEpicDTO): Promise<{ success: true; data: any } | { success: false; error: string }> {
     try {
         const user = await getRequiredSession();

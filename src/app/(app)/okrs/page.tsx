@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { okrService } from "@/lib/services/okr.service";
+import { getEpicsListAction } from "@/lib/actions/roadmap.actions";
 import type { Objective, KeyResult, OKRStatus } from "@/types/product";
 import {
   Target,
@@ -14,10 +15,36 @@ import {
   TrendingUp,
   Check,
   RefreshCw,
+  Layers,
 } from "lucide-react";
 
-// ─── Constantes ───────────────────────────────────────────────
-const QUARTERS = ["Q4 2025", "Q1 2026", "Q2 2026", "Q3 2026"];
+// ─── Helpers ──────────────────────────────────────────────────
+function currentQuarter() {
+  const now = new Date();
+  return `Q${Math.ceil((now.getMonth() + 1) / 3)} ${now.getFullYear()}`;
+}
+
+function buildQuarters(): string[] {
+  const now = new Date();
+  const year = now.getFullYear();
+  const q = Math.ceil((now.getMonth() + 1) / 3);
+  const quarters: string[] = [];
+  // 2 quarters back, current, 3 ahead
+  for (let delta = -2; delta <= 3; delta++) {
+    let nq = q + delta;
+    let ny = year;
+    while (nq < 1) { nq += 4; ny--; }
+    while (nq > 4) { nq -= 4; ny++; }
+    quarters.push(`Q${nq} ${ny}`);
+  }
+  return quarters;
+}
+
+const EPIC_COLORS: Record<string, string> = {
+  blue: "bg-blue-500", purple: "bg-purple-500", amber: "bg-amber-500",
+  emerald: "bg-emerald-500", pink: "bg-pink-500", slate: "bg-slate-500",
+  rose: "bg-rose-500", orange: "bg-orange-500", teal: "bg-teal-500", indigo: "bg-indigo-500",
+};
 
 const STATUS_CONFIG: Record<OKRStatus, { label: string; color: string; dot: string }> = {
   on_track: { label: "No Prazo", color: "text-emerald-600 bg-emerald-50", dot: "bg-emerald-500" },
@@ -47,9 +74,7 @@ function Ring({ pct, size = 40 }: { pct: number; size?: number }) {
 
 // ─── Check-in Modal ───────────────────────────────────────────
 function CheckinModal({
-  kr,
-  onClose,
-  onSave,
+  kr, onClose, onSave,
 }: {
   kr: KeyResult;
   onClose: () => void;
@@ -106,12 +131,25 @@ function CheckinModal({
   );
 }
 
+// ─── Epic Badge ───────────────────────────────────────────────
+function EpicBadge({ epic }: { epic: { id: string; name: string; color: string } }) {
+  const dot = EPIC_COLORS[epic.color] ?? "bg-blue-500";
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+      {epic.name}
+    </span>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────
 export default function OKRsPage() {
   const supabase = createClient();
+  const QUARTERS = buildQuarters();
 
-  const [quarter, setQuarter] = useState("Q1 2026");
+  const [quarter, setQuarter] = useState(currentQuarter);
   const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [epics, setEpics] = useState<{ id: string; name: string; color: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [checkingIn, setCheckingIn] = useState<KeyResult | null>(null);
@@ -119,6 +157,7 @@ export default function OKRsPage() {
   // New objective form
   const [addingObj, setAddingObj] = useState(false);
   const [newObjTitle, setNewObjTitle] = useState("");
+  const [newObjEpicId, setNewObjEpicId] = useState<string>("");
 
   // New KR form per objective
   const [addingKRFor, setAddingKRFor] = useState<string | null>(null);
@@ -128,8 +167,12 @@ export default function OKRsPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const objs = await okrService.getObjectivesByQuarter(quarter);
+    const [objs, epicList] = await Promise.all([
+      okrService.getObjectivesByQuarter(quarter),
+      getEpicsListAction(),
+    ]);
     setObjectives(objs);
+    setEpics(epicList as any);
     if (objs && objs.length > 0) {
       setExpanded(new Set(objs.map((o: Objective) => o.id)));
     }
@@ -138,11 +181,30 @@ export default function OKRsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  function epicById(id: string | null | undefined) {
+    if (!id) return null;
+    return epics.find((e) => e.id === id) ?? null;
+  }
+
   async function createObjective() {
     if (!newObjTitle.trim()) return;
-    const data = await okrService.createObjective(newObjTitle.trim(), quarter);
-    if (data) setObjectives((prev) => [...prev, { ...data, key_results: [] }]);
+    const { data } = await supabase
+      .from("objectives")
+      .insert({
+        title: newObjTitle.trim(),
+        quarter,
+        status: "on_track" as OKRStatus,
+        epic_id: newObjEpicId || null,
+      })
+      .select()
+      .single();
+
+    if (data) {
+      const epic = epicById(data.epic_id);
+      setObjectives((prev) => [...prev, { ...data, key_results: [], epic: epic ?? undefined }]);
+    }
     setNewObjTitle("");
+    setNewObjEpicId("");
     setAddingObj(false);
   }
 
@@ -191,14 +253,12 @@ export default function OKRsPage() {
   }
 
   async function saveCheckin(kr: KeyResult, value: number, note: string) {
-    // Insert check-in record
     await supabase.from("checkins").insert({
       key_result_id: kr.id,
       value,
       note: note || null,
     });
 
-    // Update KR current value
     const newStatus: OKRStatus =
       value >= kr.target_value ? "completed"
         : value / kr.target_value >= 0.7 ? "on_track"
@@ -248,7 +308,7 @@ export default function OKRsPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center gap-4 shrink-0">
+      <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center gap-4 shrink-0 flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
             <Target size={14} className="text-white" />
@@ -257,13 +317,14 @@ export default function OKRsPage() {
         </div>
 
         {/* Quarter selector */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto">
           {QUARTERS.map((q) => (
             <button
               key={q}
               onClick={() => setQuarter(q)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${quarter === q ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
-                }`}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap ${
+                quarter === q ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
+              }`}
             >
               {q}
             </button>
@@ -289,20 +350,45 @@ export default function OKRsPage() {
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {/* New objective form */}
         {addingObj && (
-          <div className="bg-white rounded-2xl border border-blue-200 p-4 shadow-sm">
+          <div className="bg-white rounded-2xl border border-blue-200 p-4 shadow-sm space-y-3">
             <input
               autoFocus
               value={newObjTitle}
               onChange={(e) => setNewObjTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") createObjective(); if (e.key === "Escape") setAddingObj(false); }}
               placeholder="Título do objetivo…"
-              className="w-full text-sm font-medium outline-none placeholder-gray-400 text-gray-800 mb-3"
+              className="w-full text-sm font-medium outline-none placeholder-gray-400 text-gray-800"
             />
+
+            {/* Epic selector */}
+            {epics.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Layers size={13} className="text-gray-400 shrink-0" />
+                <select
+                  value={newObjEpicId}
+                  onChange={(e) => setNewObjEpicId(e.target.value)}
+                  className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400 bg-white text-gray-600"
+                >
+                  <option value="">Vincular a um épico (opcional)</option>
+                  {epics.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex gap-2">
-              <button onClick={createObjective} disabled={!newObjTitle.trim()} className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 disabled:opacity-50">
+              <button
+                onClick={createObjective}
+                disabled={!newObjTitle.trim()}
+                className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 disabled:opacity-50"
+              >
                 Criar Objetivo
               </button>
-              <button onClick={() => setAddingObj(false)} className="text-xs text-gray-400 hover:text-gray-600 px-2">
+              <button
+                onClick={() => { setAddingObj(false); setNewObjEpicId(""); }}
+                className="text-xs text-gray-400 hover:text-gray-600 px-2"
+              >
                 Cancelar
               </button>
             </div>
@@ -318,7 +404,10 @@ export default function OKRsPage() {
               <p className="text-gray-700 font-semibold">Sem objetivos em {quarter}</p>
               <p className="text-sm text-gray-400 mt-1">Crie um objetivo para começar</p>
             </div>
-            <button onClick={() => setAddingObj(true)} className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700">
+            <button
+              onClick={() => setAddingObj(true)}
+              className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700"
+            >
               Criar Objetivo
             </button>
           </div>
@@ -327,6 +416,7 @@ export default function OKRsPage() {
             const pct = objProgress(obj);
             const isOpen = expanded.has(obj.id);
             const st = STATUS_CONFIG[obj.status];
+            const linkedEpic = obj.epic ?? epicById(obj.epic_id);
             return (
               <div key={obj.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {/* Objective header */}
@@ -341,6 +431,7 @@ export default function OKRsPage() {
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${st.color}`}>
                         {st.label}
                       </span>
+                      {linkedEpic && <EpicBadge epic={linkedEpic} />}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {(obj.key_results ?? []).length} Key Results · {pct}% concluído
