@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import SupportFAB from "@/components/layout/SupportFAB";
-import { teamService } from "@/lib/services/team.service";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +53,34 @@ export default async function AppLayout({
   }
 
   // ── USER SYNCHRONIZATION ──
-  // Upsert the Supabase Auth user into the internal users table so that
+  // Upsert the Supabase Auth user into the internal "User" table so that
   // role-based access checks in Server Actions work correctly.
+  // Uses Supabase HTTP client (no Prisma / no direct TCP connection needed).
   try {
-    await teamService.syncUser(user);
+    const name =
+      user.user_metadata?.name ??
+      user.user_metadata?.full_name ??
+      user.email?.split("@")[0] ??
+      "Usuário";
+
+    // Check if this is the first user — first user gets SUPER_ADMIN
+    const { count } = await supabase
+      .from("User")
+      .select("*", { count: "exact", head: true });
+    const defaultRole = count === 0 ? "SUPER_ADMIN" : "BLOXXS_TEAM";
+
+    // Try to insert; if email already exists just update the name
+    const { error: insertErr } = await supabase.from("User").insert({
+      id: user.id,
+      email: user.email,
+      name,
+      role: defaultRole,
+    });
+
+    if (insertErr && insertErr.code === "23505") {
+      // Duplicate email — only update name, never overwrite role
+      await supabase.from("User").update({ name }).eq("email", user.email!);
+    }
   } catch (err) {
     console.error("WARN: [APP_LAYOUT] syncUser failed (non-fatal):", err);
   }
