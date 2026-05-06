@@ -130,6 +130,26 @@ function colorBg(id: string) {
   return COLORS.find((c) => c.id === id)?.bg ?? "bg-blue-500";
 }
 
+// Assigns epics into non-overlapping lanes so bars never visually collide.
+function buildLanes(streamEpics: Epic[], timelineStart: Date, totalMonths: number): Epic[][] {
+  const lanes: Epic[][] = [];
+  for (const epic of streamEpics) {
+    const pos = epicPosition(epic, timelineStart, totalMonths);
+    if (!pos) continue;
+    let placed = false;
+    for (const lane of lanes) {
+      const overlaps = lane.some((e) => {
+        const ep = epicPosition(e, timelineStart, totalMonths);
+        if (!ep) return false;
+        return pos.left < ep.left + ep.width && pos.left + pos.width > ep.left;
+      });
+      if (!overlaps) { lane.push(epic); placed = true; break; }
+    }
+    if (!placed) lanes.push([epic]);
+  }
+  return lanes.length ? lanes : [[]];
+}
+
 // ─── Modal de criação de Épico ────────────────────────────────
 const INIT_FORM = {
   title: "", description: "", stream: STREAMS[0],
@@ -622,50 +642,70 @@ export default function RoadmapPage() {
                   ))}
                 </div>
 
-                {/* Stream rows */}
+                {/* Stream rows — lane-based to prevent epic overlap */}
                 {streams.map((stream) => {
                   const streamEpics = epics.filter((e) => e.stream === stream && e.startDate);
+                  const lanes = buildLanes(streamEpics, timelineStart, totalMonths);
                   return (
-                    <div key={stream} className="flex border-b border-gray-100 last:border-b-0 min-h-14">
-                      <div className="w-48 shrink-0 px-5 py-3 border-r border-gray-100 flex items-center">
+                    <div key={stream} className="flex border-b border-gray-100 last:border-b-0">
+                      {/* Stream label spans all lanes */}
+                      <div
+                        className="w-48 shrink-0 px-5 border-r border-gray-100 flex items-center"
+                        style={{ minHeight: `${lanes.length * 44}px` }}
+                      >
                         <p className="text-xs font-semibold text-gray-700">{stream}</p>
                       </div>
-                      <div className="flex flex-1 relative py-2">
-                        {months.map((_, i) => (
-                          <div key={i} className="flex-1 border-r border-gray-50 last:border-r-0" />
-                        ))}
-                        {streamEpics.map((epic) => {
-                          const pos = epicPosition(epic, timelineStart, totalMonths);
-                          if (!pos) return null;
-                          const hex = colorHex(epic.color);
-                          return (
-                            <div
-                              key={epic.id}
-                              className="absolute top-2 bottom-2 px-1 flex items-center"
-                              style={{ left: `${pos.left}%`, width: `${pos.width}%` }}
-                            >
+                      {/* One sub-row per lane */}
+                      <div className="flex-1 flex flex-col">
+                        {lanes.map((lane, laneIdx) => (
+                          <div
+                            key={laneIdx}
+                            className="relative"
+                            style={{ height: "44px", borderTop: laneIdx > 0 ? "1px solid #f9fafb" : "none" }}
+                          >
+                            {/* Month grid lines */}
+                            {months.map((_, i) => (
                               <div
-                                title={`${epic.name}${epic.sprints?.length ? ` · ${epic.sprints.length} sprint(s)` : ""}${epic.objectiveIds?.length ? ` · ${epic.objectiveIds.length} OKR(s)` : ""}`}
-                                className="rounded-lg px-3 py-1.5 w-full cursor-pointer shadow-sm hover:opacity-90 transition-opacity"
-                                style={{ background: hex }}
-                              >
-                                <p className="text-[10px] font-bold text-white leading-snug truncate">{epic.name}</p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  {(epic.sprints?.length ?? 0) > 0 && (
-                                    <span className="text-[9px] text-white/80 flex items-center gap-0.5">
-                                      <Zap size={8} />{epic.sprints!.length}
-                                    </span>
-                                  )}
-                                  {(epic.objectiveIds?.length ?? 0) > 0 && (
-                                    <span className="text-[9px] text-white/80 flex items-center gap-0.5">
-                                      <Target size={8} />{epic.objectiveIds!.length}
-                                    </span>
-                                  )}
+                                key={i}
+                                className="absolute top-0 bottom-0 border-r border-gray-50"
+                                style={{ left: `${(i / totalMonths) * 100}%`, width: `${(1 / totalMonths) * 100}%` }}
+                              />
+                            ))}
+                            {/* Epics in this lane */}
+                            {lane.map((epic) => {
+                              const pos = epicPosition(epic, timelineStart, totalMonths);
+                              if (!pos) return null;
+                              const hex = colorHex(epic.color);
+                              return (
+                                <div
+                                  key={epic.id}
+                                  className="absolute top-2 bottom-2 px-1 flex items-center"
+                                  style={{ left: `${pos.left}%`, width: `${pos.width}%` }}
+                                >
+                                  <div
+                                    title={`${epic.name}${epic.sprints?.length ? ` · ${epic.sprints.length} sprint(s)` : ""}${epic.objectiveIds?.length ? ` · ${epic.objectiveIds.length} OKR(s)` : ""}`}
+                                    className="rounded-lg px-3 py-1.5 w-full cursor-pointer shadow-sm hover:opacity-90 transition-opacity"
+                                    style={{ background: hex }}
+                                  >
+                                    <p className="text-[10px] font-bold text-white leading-snug truncate">{epic.name}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      {(epic.sprints?.length ?? 0) > 0 && (
+                                        <span className="text-[9px] text-white/80 flex items-center gap-0.5">
+                                          <Zap size={8} />{epic.sprints!.length}
+                                        </span>
+                                      )}
+                                      {(epic.objectiveIds?.length ?? 0) > 0 && (
+                                        <span className="text-[9px] text-white/80 flex items-center gap-0.5">
+                                          <Target size={8} />{epic.objectiveIds!.length}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                              );
+                            })}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
