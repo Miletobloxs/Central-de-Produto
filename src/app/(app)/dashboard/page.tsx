@@ -97,53 +97,42 @@ export default function DashboardPage() {
     setLoading(true);
 
     try {
-      // Active sprint
-      const { data: sprintData } = await supabase
-        .from("sprints")
-        .select("*")
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [sprintsRes, backlogRes, mustRes, objRes] = await Promise.all([
+        supabase.from("sprints").select("*").order("created_at", { ascending: false }),
+        supabase.from("backlog_items").select("*", { count: "exact", head: true }),
+        supabase.from("backlog_items").select("*", { count: "exact", head: true }).eq("moscow_priority", "must").eq("status", "open"),
+        supabase.from("objectives").select("*, key_results(*)").order("created_at", { ascending: false }),
+      ]);
 
-      setActiveSprint(sprintData ?? null);
+      // Pega a sprint ativa; se não houver, usa a mais recente como fallback
+      const allSprints: Sprint[] = sprintsRes.data ?? [];
+      const sprint = allSprints.find((s) => s.status === "active") ?? allSprints[0] ?? null;
+      setActiveSprint(sprint);
 
-      // Sprint tasks
-      if (sprintData) {
+      // Tasks da sprint selecionada
+      if (sprint) {
         const { data: taskData } = await supabase
           .from("tasks")
           .select("*")
-          .eq("sprint_id", sprintData.id);
+          .eq("sprint_id", sprint.id);
         setTasks(taskData ?? []);
       } else {
         setTasks([]);
       }
 
-      // Backlog counts
-      const { count: total } = await supabase
-        .from("backlog_items")
-        .select("*", { count: "exact", head: true });
-      setBacklogCount(total ?? 0);
+      setBacklogCount(backlogRes.count ?? 0);
+      setMustHaveCount(mustRes.count ?? 0);
 
-      const { count: mustCount } = await supabase
-        .from("backlog_items")
-        .select("*", { count: "exact", head: true })
-        .eq("moscow_priority", "must")
-        .eq("status", "open");
-      setMustHaveCount(mustCount ?? 0);
-
-      // OKRs this quarter
-      const { data: objData } = await supabase
-        .from("objectives")
-        .select("*, key_results(*)")
-        .eq("quarter", currentQuarter);
-      setObjectives(objData ?? []);
+      // Objetivos: prioriza o quarter atual, mas mostra todos se não houver nenhum neste quarter
+      const allObjs: Objective[] = objRes.data ?? [];
+      const quarterObjs = allObjs.filter((o) => o.quarter === currentQuarter);
+      setObjectives(quarterObjs.length > 0 ? quarterObjs : allObjs);
     } catch (err) {
       console.error("[DashboardPage] fetchDashboard:", err);
     } finally {
       setLoading(false);
     }
-  }, [supabase, currentQuarter]);
+  }, [supabase]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
@@ -152,7 +141,9 @@ export default function DashboardPage() {
   const donePoints    = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
   const completion    = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0;
   const velocity      = donePoints;
-  const inProgress    = tasks.filter((t) => t.status === "in_progress" || t.status === "review").length;
+  const inProgress       = tasks.filter((t) => t.status === "in_progress" || t.status === "review").length;
+  const isActiveSprint   = activeSprint?.status === "active";
+  const isCurrentQuarter = objectives.length > 0 && objectives.every((o) => o.quarter === currentQuarter);
 
   const okrProgress = objectives.length
     ? Math.round(
@@ -195,9 +186,9 @@ export default function DashboardPage() {
         {/* KPI Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
-            label="Sprint Completion"
+            label={isActiveSprint ? "Sprint Completion" : "Última Sprint"}
             value={`${completion}%`}
-            sub={activeSprint?.name ?? "Sem sprint ativo"}
+            sub={activeSprint?.name ?? "Sem sprint cadastrada"}
             icon={Zap}
             iconBg="bg-blue-100"
             iconColor="text-blue-600"
@@ -220,9 +211,9 @@ export default function DashboardPage() {
             iconColor="text-amber-600"
           />
           <KPICard
-            label={`OKRs ${currentQuarter}`}
+            label={isCurrentQuarter ? `OKRs ${currentQuarter}` : "OKRs (todos)"}
             value={`${okrProgress}%`}
-            sub={`${objectives.length} objetivos ativos`}
+            sub={`${objectives.length} objetivo${objectives.length !== 1 ? "s" : ""} ativo${objectives.length !== 1 ? "s" : ""}`}
             icon={Target}
             iconBg="bg-purple-100"
             iconColor="text-purple-600"
@@ -234,9 +225,21 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-bold text-gray-900">
-                  {activeSprint?.name ?? "Nenhum Sprint Ativo"}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-gray-900">
+                    {activeSprint?.name ?? "Nenhum Sprint Cadastrado"}
+                  </h3>
+                  {activeSprint && !isActiveSprint && (
+                    <span className="text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-full">
+                      planejando
+                    </span>
+                  )}
+                  {isActiveSprint && (
+                    <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded-full">
+                      ativo
+                    </span>
+                  )}
+                </div>
                 {activeSprint?.goal && (
                   <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[260px]">
                     {activeSprint.goal}
