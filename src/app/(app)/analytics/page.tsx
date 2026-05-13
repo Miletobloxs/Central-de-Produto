@@ -219,6 +219,169 @@ export default function AnalyticsPage() {
   );
   const totalBacklog = backlogItems.length;
 
+  // ─── Export ───────────────────────────────────────────────
+  function exportReport() {
+    const date = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+    const statusLabel = (s: string) =>
+      s === "active" ? "Ativo" : s === "completed" ? "Concluído" : "Planejando";
+    const statusBadgeClass = (s: string) =>
+      s === "active" ? "#dbeafe;color:#1d4ed8" : s === "completed" ? "#d1fae5;color:#065f46" : "#fef3c7;color:#92400e";
+    const progressColor = (pct: number) =>
+      pct >= 70 ? "#10b981" : pct >= 40 ? "#f59e0b" : "#ef4444";
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>Analytics de Produto — ${date}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;color:#111;background:#fff;padding:40px;font-size:13px;line-height:1.5}
+  h1{font-size:22px;font-weight:800;color:#0f172a}
+  h2{font-size:13px;font-weight:700;color:#1e293b;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #e2e8f0;text-transform:uppercase;letter-spacing:.04em}
+  .header{border-bottom:3px solid #2563eb;padding-bottom:16px;margin-bottom:4px}
+  .subtitle{color:#64748b;font-size:12px;margin-top:4px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
+  .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px}
+  .kpi-label{font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .kpi-value{font-size:26px;font-weight:800;color:#0f172a;margin:4px 0}
+  .kpi-sub{font-size:11px;color:#94a3b8}
+  table{width:100%;border-collapse:collapse;margin-top:4px}
+  th{background:#f8fafc;font-size:10px;font-weight:700;color:#475569;text-align:left;padding:7px 10px;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.03em}
+  td{font-size:12px;padding:7px 10px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:9999px}
+  .bar{background:#e2e8f0;border-radius:4px;height:5px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:4px}
+  .obj-card{margin-bottom:14px;padding:12px 14px;background:#f8fafc;border-radius:8px;border-left:3px solid #3b82f6}
+  .kr-table th{background:#f1f5f9}
+  .footer{margin-top:36px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center}
+  @media print{body{padding:20px}@page{margin:1.5cm}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Analytics de Produto</h1>
+  <p class="subtitle">Relatório gerado em ${date} às ${time}</p>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <p class="kpi-label">Sprint Ativo</p>
+    <p class="kpi-value">${activeSprintMetric ? `${activeSprintMetric.done}<span style="font-size:16px;color:#94a3b8">/${activeSprintMetric.total}</span>` : "—"}</p>
+    <p class="kpi-sub">${activeSprintMetric ? "tasks concluídas" : activeSprint ? activeSprint.name : "sem sprint ativo"}</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi-label">Velocidade Média</p>
+    <p class="kpi-value">${avgVelocity !== null ? avgVelocity : "—"}<span style="font-size:14px;color:#94a3b8;font-weight:500"> SP</span></p>
+    <p class="kpi-sub">${sprintMetrics.filter((s) => s.status === "completed").length} sprint(s) concluído(s)</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi-label">Progresso OKR</p>
+    <p class="kpi-value" style="color:${avgOKR !== null ? progressColor(avgOKR) : "#94a3b8"}">${avgOKR !== null ? `${avgOKR}%` : "—"}</p>
+    <p class="kpi-sub">${objectives.length} objetivo${objectives.length !== 1 ? "s" : ""} cadastrado${objectives.length !== 1 ? "s" : ""}</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi-label">Backlog em Sprint</p>
+    <p class="kpi-value">${totalBacklog > 0 ? `${Math.round((backlogInSprint / totalBacklog) * 100)}%` : "—"}</p>
+    <p class="kpi-sub">${backlogInSprint} de ${totalBacklog} itens alocados</p>
+  </div>
+</div>
+
+<h2>Throughput por Sprint</h2>
+${sprintMetrics.length === 0
+  ? `<p style="color:#94a3b8;font-size:12px;padding:8px 0">Nenhum sprint encontrado.</p>`
+  : `<table>
+  <thead><tr><th>Sprint</th><th>Status</th><th>To Do</th><th>Em Progresso</th><th>Review</th><th>Concluído</th><th>Total Tasks</th><th>SP Entregues</th><th>SP Total</th><th>Conclusão</th></tr></thead>
+  <tbody>${sprintMetrics.map((s) => {
+    const pct = s.sp_total > 0 ? Math.round((s.sp_done / s.sp_total) * 100) : s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+    return `<tr>
+      <td><strong>${s.name}</strong></td>
+      <td><span class="badge" style="background:${statusBadgeClass(s.status)}">${statusLabel(s.status)}</span></td>
+      <td>${s.todo}</td><td>${s.in_progress}</td><td>${s.review}</td><td>${s.done}</td>
+      <td>${s.total}</td><td>${s.sp_done}</td><td>${s.sp_total}</td>
+      <td><strong style="color:${progressColor(pct)}">${pct}%</strong></td>
+    </tr>`;
+  }).join("")}</tbody>
+</table>`}
+
+<h2>Objetivos & Key Results</h2>
+${objectives.length === 0
+  ? `<p style="color:#94a3b8;font-size:12px;padding:8px 0">Nenhum objetivo cadastrado.</p>`
+  : objectives.map((obj) => `
+<div class="obj-card">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+    <div>
+      <strong style="font-size:13px">${obj.title}</strong>
+      <p style="font-size:11px;color:#64748b;margin-top:2px">${obj.quarter} · ${OKR_STATUS_META[obj.status]?.label ?? obj.status}</p>
+    </div>
+    <span style="font-size:15px;font-weight:800;color:${progressColor(obj.progress)}">${obj.progress}%</span>
+  </div>
+  <div class="bar" style="margin-bottom:${obj.key_results.length > 0 ? "10px" : "0"}">
+    <div class="bar-fill" style="width:${obj.progress}%;background:${progressColor(obj.progress)}"></div>
+  </div>
+  ${obj.key_results.length > 0 ? `
+  <table class="kr-table" style="margin-top:4px">
+    <thead><tr><th>Key Result</th><th>Atual</th><th>Meta</th><th>Unidade</th><th>Progresso</th></tr></thead>
+    <tbody>${obj.key_results.map((kr) => {
+      const krPct = Math.min(100, Math.round((kr.current_value / Math.max(kr.target_value, 1)) * 100));
+      return `<tr>
+        <td>${kr.title}</td>
+        <td>${kr.current_value}</td>
+        <td>${kr.target_value}</td>
+        <td>${kr.unit}</td>
+        <td><strong style="color:${progressColor(krPct)}">${krPct}%</strong></td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table>` : ""}
+</div>`).join("")}
+
+<h2>Progresso por Épico</h2>
+${epicProgress.length === 0
+  ? `<p style="color:#94a3b8;font-size:12px;padding:8px 0">Nenhum épico cadastrado.</p>`
+  : `<table>
+  <thead><tr><th>Épico</th><th>To Do</th><th>Em Progresso</th><th>Review</th><th>Concluído</th><th>Total Tasks</th><th>% Conclusão</th></tr></thead>
+  <tbody>${epicProgress.map((e) => {
+    const pct = e.total > 0 ? Math.round((e.done / e.total) * 100) : 0;
+    return `<tr>
+      <td><strong>${e.name}</strong></td>
+      <td>${e.todo}</td><td>${e.in_progress}</td><td>${e.review}</td><td>${e.done}</td><td>${e.total}</td>
+      <td><strong style="color:${progressColor(pct)}">${pct}%</strong></td>
+    </tr>`;
+  }).join("")}</tbody>
+</table>`}
+
+<h2>Backlog — Priorização MoSCoW</h2>
+${totalBacklog === 0
+  ? `<p style="color:#94a3b8;font-size:12px;padding:8px 0">Nenhum item no backlog.</p>`
+  : `<table>
+  <thead><tr><th>Categoria</th><th>Itens</th><th>Em Sprint</th><th>Story Points</th><th>% do Backlog</th></tr></thead>
+  <tbody>${(Object.entries(moscowCounts) as [keyof typeof MOSCOW_META, number][]).map(([key, count]) => {
+    const pct = totalBacklog > 0 ? Math.round((count / totalBacklog) * 100) : 0;
+    const inSprint = backlogItems.filter((b) => b.moscow_priority === key && b.sprint_id != null).length;
+    const sp = backlogItems.filter((b) => b.moscow_priority === key).reduce((a, b) => a + (b.story_points ?? 0), 0);
+    return `<tr>
+      <td><strong>${MOSCOW_META[key].label}</strong></td>
+      <td>${count}</td><td>${inSprint}</td><td>${sp} SP</td>
+      <td>${pct}%</td>
+    </tr>`;
+  }).join("")}</tbody>
+</table>`}
+
+<div class="footer">Central de Produto · Analytics Report · ${date} às ${time}</div>
+<script>window.print();</script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
+
   // ─── Render ───────────────────────────────────────────────
   if (loading) {
     return (
@@ -239,9 +402,12 @@ export default function AnalyticsPage() {
             Velocidade, OKRs, épicos e backlog — dados em tempo real
           </p>
         </div>
-        <button className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors">
+        <button
+          onClick={exportReport}
+          className="flex items-center gap-2 text-sm text-gray-600 border border-gray-200 bg-white rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors"
+        >
           <Download size={14} />
-          Exportar
+          Exportar PDF
         </button>
       </div>
 
