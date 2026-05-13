@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
-import type { Sprint, Task, TaskStatus, TaskPriority } from "@/types/product";
+import type { Sprint, Task, TaskStatus, TaskPriority, SprintStatus } from "@/types/product";
 import {
   Plus,
   Loader2,
@@ -820,6 +820,14 @@ export default function SprintsPage() {
     setSubtasks((p) => p.filter((s) => s.id !== id));
   }
 
+  async function updateSprintStatus(sprintId: string, newStatus: SprintStatus) {
+    await supabase.from("sprints").update({ status: newStatus }).eq("id", sprintId);
+    setSprints((p) => p.map((s) => s.id === sprintId ? { ...s, status: newStatus } : s));
+    if (activeSprint?.id === sprintId) {
+      setActiveSprint((prev: Sprint | null) => prev ? { ...prev, status: newStatus } : null);
+    }
+  }
+
   async function finishSprint() {
     if (!activeSprint) return;
     const donePoints = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
@@ -908,14 +916,36 @@ export default function SprintsPage() {
           {sprintDropdown && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setSprintDropdown(false)} />
-              <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-100 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
+              <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-gray-100 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
                 {sprints.map((s) => (
-                  <button key={s.id} onClick={() => selectSprint(s)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2
-                      ${activeSprint?.id === s.id ? "text-blue-600 font-medium" : "text-gray-700"}`}>
-                    {activeSprint?.id === s.id && <CheckCircle2 size={13} />}
-                    {s.name}
-                  </button>
+                  <div key={s.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 group">
+                    <button
+                      onClick={() => selectSprint(s)}
+                      className={`flex items-center gap-2 flex-1 text-sm text-left min-w-0 ${
+                        activeSprint?.id === s.id ? "text-blue-600 font-medium" : "text-gray-700"
+                      }`}
+                    >
+                      {activeSprint?.id === s.id
+                        ? <CheckCircle2 size={13} className="shrink-0" />
+                        : <div className="w-3.5 shrink-0" />
+                      }
+                      <span className="truncate">{s.name}</span>
+                    </button>
+                    <select
+                      value={s.status}
+                      onClick={(e: { stopPropagation(): void }) => e.stopPropagation()}
+                      onChange={(e: { target: { value: string } }) => updateSprintStatus(s.id, e.target.value as SprintStatus)}
+                      className={`shrink-0 text-[10px] font-semibold border rounded-lg px-1.5 py-1 cursor-pointer focus:outline-none focus:border-blue-300 ${
+                        s.status === "active"    ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
+                        s.status === "planning"  ? "border-amber-200 bg-amber-50 text-amber-700" :
+                        "border-gray-200 bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      <option value="planning">Planejando</option>
+                      <option value="active">Ativo</option>
+                      <option value="completed">Concluído</option>
+                    </select>
+                  </div>
                 ))}
                 <div className="border-t border-gray-100 my-1" />
                 <button onClick={() => { setSprintDropdown(false); setShowNewSprint(true); }}
