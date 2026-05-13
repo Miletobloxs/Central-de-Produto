@@ -32,15 +32,17 @@ export interface Task {
   created_at: string;
 }
 
+export type BacklogStatus = "todo" | "in_progress" | "review" | "entregue";
+
 export interface BacklogItem {
   id: string;
   title: string;
   description?: string;
-  moscow_priority: MoscowPriority;
+  moscow_priority?: MoscowPriority;
   story_points: number;
   business_value: number;
   epic?: string;
-  status: string;
+  status: BacklogStatus;
   assignee?: string;
   sprint_id?: string;
   position: number;
