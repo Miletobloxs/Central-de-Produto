@@ -190,6 +190,29 @@ export class TeamService {
             supabaseUser.user_metadata?.full_name ||
             supabaseUser.email.split("@")[0];
 
+        // Check if user already exists — never overwrite their role
+        const { data: existing } = await this.db()
+            .from("team_members")
+            .select("*")
+            .eq("email", supabaseUser.email)
+            .maybeSingle();
+
+        if (existing) {
+            // Only update name if it changed; role is preserved
+            if (name && name !== existing.name) {
+                const { data, error } = await this.db()
+                    .from("team_members")
+                    .update({ name })
+                    .eq("id", existing.id)
+                    .select()
+                    .single();
+                if (error) return mapMember(existing);
+                return mapMember(data);
+            }
+            return mapMember(existing);
+        }
+
+        // New user — first user in the table becomes SUPER_ADMIN
         const { count } = await this.db()
             .from("team_members")
             .select("*", { count: "exact", head: true });
@@ -198,10 +221,7 @@ export class TeamService {
 
         const { data, error } = await this.db()
             .from("team_members")
-            .upsert(
-                { id: supabaseUser.id, email: supabaseUser.email, name, role: defaultRole },
-                { onConflict: "email", ignoreDuplicates: false }
-            )
+            .insert({ id: supabaseUser.id, email: supabaseUser.email, name, role: defaultRole })
             .select()
             .single();
 
