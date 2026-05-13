@@ -17,6 +17,8 @@ export interface Sprint {
   epic_id?: string | null;
 }
 
+export type TaskComplexity = "low" | "medium" | "high" | "critical";
+
 export interface Task {
   id: string;
   title: string;
@@ -24,6 +26,8 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   story_points: number;
+  complexity: TaskComplexity;
+  estimate_hours: number;
   epic?: string;
   assignee?: string;
   sprint_id?: string;

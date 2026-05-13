@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
-import type { Sprint, Task, TaskStatus, TaskPriority, SprintStatus } from "@/types/product";
+import type { Sprint, Task, TaskStatus, TaskPriority, TaskComplexity, SprintStatus } from "@/types/product";
 import {
   Plus,
   Loader2,
@@ -33,6 +33,7 @@ import {
   ListTree,
   FlagTriangleRight,
   Pencil,
+  Clock,
 } from "lucide-react";
 
 // ─── Constantes ──────────────────────────────────────────────
@@ -49,6 +50,20 @@ const PRIORITY_COLOR: Record<string, string> = {
   medium:   "bg-yellow-400",
   low:      "bg-gray-300",
 };
+
+const COMPLEXITY_META: Record<string, { label: string; badge: string }> = {
+  low:      { label: "Baixa",   badge: "bg-blue-50 text-blue-600" },
+  medium:   { label: "Média",   badge: "bg-amber-50 text-amber-600" },
+  high:     { label: "Alta",    badge: "bg-orange-50 text-orange-600" },
+  critical: { label: "Crítica", badge: "bg-red-50 text-red-600" },
+};
+
+function formatEstimate(hours: number): string {
+  if (!hours || hours <= 0) return "";
+  if (hours < 8) return `${hours}h`;
+  const days = hours / 8;
+  return `${days % 1 === 0 ? days : days.toFixed(1)}d`;
+}
 
 const EPIC_COLORS = [
   "bg-purple-100 text-purple-700",
@@ -205,7 +220,17 @@ function TaskCard({
                   {task.epic}
                 </span>
               )}
+              {task.complexity && task.complexity !== "medium" && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${COMPLEXITY_META[task.complexity]?.badge ?? ""}`}>
+                  {COMPLEXITY_META[task.complexity]?.label}
+                </span>
+              )}
               <span className="text-[10px] font-bold text-gray-400">{task.story_points}pt</span>
+              {!!task.estimate_hours && (
+                <span className="text-[10px] font-semibold text-gray-400 flex items-center gap-0.5">
+                  <Clock size={9} />{formatEstimate(task.estimate_hours)}
+                </span>
+              )}
             </div>
 
             {/* Footer */}
@@ -531,6 +556,13 @@ const PRIORITIES: { id: TaskPriority; label: string; activeClass: string; idleCl
   { id: "critical", label: "Critical", activeClass: "bg-red-600 text-white",     idleClass: "bg-red-100 text-red-700 hover:bg-red-200" },
 ];
 
+const COMPLEXITIES: { id: TaskComplexity; label: string; activeClass: string; idleClass: string }[] = [
+  { id: "low",      label: "Baixa",   activeClass: "bg-blue-600 text-white",   idleClass: "bg-blue-50 text-blue-600 hover:bg-blue-100" },
+  { id: "medium",   label: "Média",   activeClass: "bg-amber-500 text-white",  idleClass: "bg-amber-50 text-amber-600 hover:bg-amber-100" },
+  { id: "high",     label: "Alta",    activeClass: "bg-orange-500 text-white", idleClass: "bg-orange-50 text-orange-600 hover:bg-orange-100" },
+  { id: "critical", label: "Crítica", activeClass: "bg-red-600 text-white",    idleClass: "bg-red-50 text-red-600 hover:bg-red-100" },
+];
+
 function EditTaskModal({
   task,
   onClose,
@@ -540,22 +572,26 @@ function EditTaskModal({
   onClose: () => void;
   onSave: (id: string, patch: Partial<Task>) => Promise<void>;
 }) {
-  const [title,    setTitle]    = useState(task.title);
-  const [priority, setPriority] = useState<TaskPriority>(task.priority);
-  const [points,   setPoints]   = useState(task.story_points);
-  const [assignee, setAssignee] = useState(task.assignee ?? "");
-  const [epic,     setEpic]     = useState(task.epic ?? "");
-  const [saving,   setSaving]   = useState(false);
+  const [title,      setTitle]      = useState(task.title);
+  const [priority,   setPriority]   = useState<TaskPriority>(task.priority);
+  const [complexity, setComplexity] = useState<TaskComplexity>(task.complexity ?? "medium");
+  const [points,     setPoints]     = useState(task.story_points);
+  const [estimate,   setEstimate]   = useState<number>(task.estimate_hours ?? 0);
+  const [assignee,   setAssignee]   = useState(task.assignee ?? "");
+  const [epic,       setEpic]       = useState(task.epic ?? "");
+  const [saving,     setSaving]     = useState(false);
 
   async function handleSave() {
     if (!title.trim()) return;
     setSaving(true);
     await onSave(task.id, {
-      title:        title.trim(),
+      title:          title.trim(),
       priority,
-      story_points: points,
-      assignee:     assignee.trim() || undefined,
-      epic:         epic || undefined,
+      complexity,
+      story_points:   points,
+      estimate_hours: estimate,
+      assignee:       assignee.trim() || undefined,
+      epic:           epic || undefined,
     });
     onClose();
   }
@@ -591,7 +627,22 @@ function EditTaskModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Complexidade</label>
+            <div className="flex gap-2 mt-1">
+              {COMPLEXITIES.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setComplexity(c.id)}
+                  className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition-colors ${complexity === c.id ? c.activeClass : c.idleClass}`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Story Points</label>
               <select
@@ -601,6 +652,21 @@ function EditTaskModal({
               >
                 {[1, 2, 3, 5, 8, 13].map((p) => <option key={p} value={p}>{p} pt</option>)}
               </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estimativa</label>
+              <div className="mt-1 flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:border-blue-400">
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={estimate || ""}
+                  onChange={(e) => setEstimate(Number(e.target.value))}
+                  placeholder="0"
+                  className="flex-1 px-3 py-2 text-sm outline-none w-0"
+                />
+                <span className="text-xs text-gray-400 pr-3 shrink-0">h</span>
+              </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Épico</label>
@@ -872,9 +938,12 @@ export default function SprintsPage() {
   });
 
   // KPIs
-  const totalPoints = tasks.reduce((s, t) => s + (t.story_points ?? 0), 0);
-  const donePoints  = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
-  const completion  = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0;
+  const totalPoints    = tasks.reduce((s, t) => s + (t.story_points ?? 0), 0);
+  const donePoints     = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
+  const completion     = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0;
+  const allTasks       = (tasks as Task[]).concat(subtasks as Task[]);
+  const totalEstimate  = allTasks.reduce((s: number, t: Task) => s + (t.estimate_hours ?? 0), 0);
+  const doneEstimate   = allTasks.filter((t: Task) => t.status === "done").reduce((s: number, t: Task) => s + (t.estimate_hours ?? 0), 0);
 
   if (loading) {
     return (
@@ -966,6 +1035,13 @@ export default function SprintsPage() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
+          {totalEstimate > 0 && (
+            <div className="hidden sm:flex items-center gap-1 text-xs text-gray-500">
+              <Clock size={12} className="text-gray-400" />
+              <span className="font-semibold">{formatEstimate(doneEstimate)}/{formatEstimate(totalEstimate)}</span>
+              <span className="text-gray-400">estimado</span>
+            </div>
+          )}
           <div className="hidden sm:flex items-center gap-2">
             <div className="w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${completion}%` }} />

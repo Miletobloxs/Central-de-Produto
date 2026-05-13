@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Plus, X, Loader2, Layers, Calendar, Target, Zap, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
-import type { Sprint } from "@/types/product";
+import type { Sprint, Task } from "@/types/product";
 import { getCurrentUserAction } from "@/lib/actions/auth.actions";
 import { accessService, UserAccessInfo } from "@/lib/services/access.service";
 import { createEpicAction, linkSprintsToEpicAction, getEpicsAction } from "@/lib/actions/roadmap.actions";
@@ -151,19 +151,33 @@ function buildLanes(streamEpics: Epic[], timelineStart: Date, totalMonths: numbe
 }
 
 // ─── Painel de detalhes do Épico (somente leitura) ───────────
+function formatEstimate(hours: number): string {
+  if (!hours || hours <= 0) return "";
+  if (hours < 8) return `${hours}h`;
+  const days = hours / 8;
+  return `${days % 1 === 0 ? days : days.toFixed(1)}d`;
+}
+
 function EpicDetailPanel({
   epic,
   allObjectives,
+  allTasks,
   onClose,
 }: {
   epic: Epic;
   allObjectives: Objective[];
+  allTasks: Task[];
   onClose: () => void;
 }) {
   const hex = colorHex(epic.color);
   const statusMeta = STATUS_META[epic.status as EpicStatus] ?? STATUS_META.planned;
   const priorityMeta = PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium;
   const linkedObjs = allObjectives.filter((o) => epic.objectiveIds?.includes(o.id));
+
+  const sprintIds = new Set((epic.sprints ?? []).map((s) => s.id));
+  const epicTasks = allTasks.filter((t) => t.sprint_id && sprintIds.has(t.sprint_id));
+  const totalEstimate = epicTasks.reduce((s, t) => s + (t.estimate_hours ?? 0), 0);
+  const doneEstimate  = epicTasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.estimate_hours ?? 0), 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
@@ -224,6 +238,24 @@ function EpicDetailPanel({
             <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl">
               <AlertCircle size={13} className="shrink-0" />
               Este épico não tem datas definidas e não aparece no timeline.
+            </div>
+          )}
+
+          {/* Estimativa do épico */}
+          {totalEstimate > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-blue-50 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-sm font-bold text-blue-700">{formatEstimate(totalEstimate)}</p>
+                <p className="text-[10px] text-blue-500 mt-0.5">Total estimado</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-sm font-bold text-emerald-700">{formatEstimate(doneEstimate)}</p>
+                <p className="text-[10px] text-emerald-500 mt-0.5">Entregue</p>
+              </div>
+              <div className="bg-amber-50 rounded-xl px-3 py-2.5 text-center">
+                <p className="text-sm font-bold text-amber-700">{formatEstimate(totalEstimate - doneEstimate)}</p>
+                <p className="text-[10px] text-amber-500 mt-0.5">Restante</p>
+              </div>
             </div>
           )}
 
@@ -630,6 +662,7 @@ export default function RoadmapPage() {
   const [epics, setEpics] = useState<Epic[]>([]);
   const [allSprints, setAllSprints] = useState<Sprint[]>([]);
   const [allObjectives, setAllObjectives] = useState<Objective[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedEpic, setSelectedEpic] = useState<Epic | null>(null);
@@ -643,10 +676,11 @@ export default function RoadmapPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [epicData, sprintRes, objRes] = await Promise.all([
+      const [epicData, sprintRes, objRes, taskRes] = await Promise.all([
         getEpicsAction(),
         supabase.from("sprints").select("*").order("created_at", { ascending: true }),
         supabase.from("objectives").select("id, title, quarter, epic_id").order("created_at", { ascending: true }),
+        supabase.from("tasks").select("id, sprint_id, estimate_hours, status").is("parent_task_id", null),
       ]);
 
       // Enrich epics with their linked objective IDs
@@ -659,6 +693,7 @@ export default function RoadmapPage() {
       setEpics(enriched);
       setAllSprints(sprintRes.data ?? []);
       setAllObjectives(objs);
+      setAllTasks((taskRes.data ?? []) as Task[]);
     } catch (error) {
       console.error("Error fetching roadmap data:", error);
     } finally {
@@ -965,6 +1000,7 @@ export default function RoadmapPage() {
         <EpicDetailPanel
           epic={selectedEpic}
           allObjectives={allObjectives}
+          allTasks={allTasks}
           onClose={() => setSelectedEpic(null)}
         />
       )}

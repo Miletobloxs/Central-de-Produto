@@ -5,8 +5,15 @@ import { createClient } from "@/lib/supabase/client";
 import type { Sprint, Task, SprintStatus } from "@/types/product";
 import {
   Loader2, ListTodo, ChevronRight, Zap,
-  CheckCircle2, Circle, ChevronDown,
+  CheckCircle2, Circle, ChevronDown, Clock,
 } from "lucide-react";
+
+function formatEstimate(hours: number): string {
+  if (!hours || hours <= 0) return "";
+  if (hours < 8) return `${hours}h`;
+  const days = hours / 8;
+  return `${days % 1 === 0 ? days : days.toFixed(1)}d`;
+}
 
 // ─── Mapeamento: status do sprint → coluna do board ───────────
 const COLUMNS: {
@@ -49,10 +56,12 @@ function SprintCard({
   const [expanded,  setExpanded]  = useState(true);
   const [advancing, setAdvancing] = useState(false);
 
-  const totalPoints = tasks.reduce((s, t) => s + (t.story_points ?? 0), 0);
-  const donePoints  = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
-  const doneTasks   = tasks.filter((t) => t.status === "done").length;
-  const completion  = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0;
+  const totalPoints   = tasks.reduce((s, t) => s + (t.story_points ?? 0), 0);
+  const donePoints    = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.story_points ?? 0), 0);
+  const doneTasks     = tasks.filter((t) => t.status === "done").length;
+  const completion    = totalPoints > 0 ? Math.round((donePoints / totalPoints) * 100) : 0;
+  const totalEstimate = tasks.reduce((s, t) => s + (t.estimate_hours ?? 0), 0);
+  const doneEstimate  = tasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.estimate_hours ?? 0), 0);
 
   const next = NEXT_STATUS[sprint.status];
 
@@ -100,7 +109,14 @@ function SprintCard({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-gray-400">{doneTasks}/{tasks.length} tasks</span>
-              <span className="text-[10px] font-semibold text-gray-500">{donePoints}/{totalPoints}pt</span>
+              <div className="flex items-center gap-2">
+                {totalEstimate > 0 && (
+                  <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                    <Clock size={9} />{formatEstimate(doneEstimate)}/{formatEstimate(totalEstimate)}
+                  </span>
+                )}
+                <span className="text-[10px] font-semibold text-gray-500">{donePoints}/{totalPoints}pt</span>
+              </div>
             </div>
           </div>
         ) : (
