@@ -150,6 +150,144 @@ function buildLanes(streamEpics: Epic[], timelineStart: Date, totalMonths: numbe
   return lanes.length ? lanes : [[]];
 }
 
+// ─── Painel de detalhes do Épico (somente leitura) ───────────
+function EpicDetailPanel({
+  epic,
+  allObjectives,
+  onClose,
+}: {
+  epic: Epic;
+  allObjectives: Objective[];
+  onClose: () => void;
+}) {
+  const hex = colorHex(epic.color);
+  const statusMeta = STATUS_META[epic.status as EpicStatus] ?? STATUS_META.planned;
+  const priorityMeta = PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium;
+  const linkedObjs = allObjectives.filter((o) => epic.objectiveIds?.includes(o.id));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="h-full w-full max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e: { stopPropagation(): void }) => e.stopPropagation()}
+      >
+        {/* Header com cor do épico */}
+        <div className="flex items-start justify-between px-6 py-5 shrink-0" style={{ borderBottom: `3px solid ${hex}` }}>
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ background: hex }} />
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-gray-900 leading-snug">{epic.name}</h2>
+              <p className="text-xs text-gray-500 mt-0.5">{epic.stream}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 ml-3 shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Status + Prioridade */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusMeta.color}`}>
+              {statusMeta.label}
+            </span>
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${priorityMeta.color}`}>
+              Prioridade {priorityMeta.label}
+            </span>
+          </div>
+
+          {/* Descrição */}
+          {epic.description && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Descrição</p>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{epic.description}</p>
+            </div>
+          )}
+
+          {/* Datas */}
+          {(epic.startDate || epic.endDate) && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Período no Roadmap</p>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <Calendar size={13} className="text-blue-500 shrink-0" />
+                {epic.startDate && (
+                  <span>{new Date(epic.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                )}
+                {epic.startDate && epic.endDate && <span className="text-gray-400">→</span>}
+                {epic.endDate && (
+                  <span>{new Date(epic.endDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                )}
+              </div>
+            </div>
+          )}
+          {!epic.startDate && (
+            <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl">
+              <AlertCircle size={13} className="shrink-0" />
+              Este épico não tem datas definidas e não aparece no timeline.
+            </div>
+          )}
+
+          {/* Sprints vinculadas */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Sprints vinculadas
+              {(epic.sprints?.length ?? 0) > 0 && (
+                <span className="ml-1.5 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-[10px] normal-case">
+                  {epic.sprints!.length}
+                </span>
+              )}
+            </p>
+            {(epic.sprints?.length ?? 0) === 0 ? (
+              <p className="text-xs text-gray-400">Nenhuma sprint vinculada</p>
+            ) : (
+              <div className="space-y-1.5">
+                {epic.sprints!.map((sprint) => (
+                  <div key={sprint.id} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl">
+                    <Zap size={11} className="text-blue-500 shrink-0" />
+                    <span className="text-sm text-gray-700 flex-1 truncate">{sprint.name}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${
+                      sprint.status === "active" ? "bg-blue-50 text-blue-600" :
+                      sprint.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                      "bg-gray-100 text-gray-500"
+                    }`}>
+                      {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : "Planejando"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* OKRs vinculados */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              OKRs vinculados
+              {linkedObjs.length > 0 && (
+                <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] normal-case">
+                  {linkedObjs.length}
+                </span>
+              )}
+            </p>
+            {linkedObjs.length === 0 ? (
+              <p className="text-xs text-gray-400">Nenhum OKR vinculado</p>
+            ) : (
+              <div className="space-y-1.5">
+                {linkedObjs.map((obj) => (
+                  <div key={obj.id} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl">
+                    <Target size={11} className="text-purple-500 shrink-0" />
+                    <span className="text-sm text-gray-700 flex-1 truncate">{obj.title}</span>
+                    <span className="text-[10px] text-gray-400 shrink-0">{obj.quarter}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal de criação de Épico ────────────────────────────────
 const INIT_FORM = {
   title: "", description: "", stream: STREAMS[0],
@@ -492,6 +630,7 @@ export default function RoadmapPage() {
   const [allObjectives, setAllObjectives] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [selectedEpic, setSelectedEpic] = useState<Epic | null>(null);
   const [user, setUser] = useState<UserAccessInfo | null>(null);
 
   const canManage = useMemo(() => {
@@ -686,6 +825,7 @@ export default function RoadmapPage() {
                                     title={`${epic.name}${epic.sprints?.length ? ` · ${epic.sprints.length} sprint(s)` : ""}${epic.objectiveIds?.length ? ` · ${epic.objectiveIds.length} OKR(s)` : ""}`}
                                     className="rounded-lg px-3 py-1.5 w-full cursor-pointer shadow-sm hover:opacity-90 transition-opacity"
                                     style={{ background: hex }}
+                                    onClick={() => setSelectedEpic(epic)}
                                   >
                                     <p className="text-[10px] font-bold text-white leading-snug truncate">{epic.name}</p>
                                     <div className="flex items-center gap-2 mt-0.5">
@@ -766,7 +906,7 @@ export default function RoadmapPage() {
                 const statusMeta = STATUS_META[epic.status as EpicStatus] ?? STATUS_META.planned;
                 const priorityMeta = PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium;
                 return (
-                  <div key={epic.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors">
+                  <div key={epic.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 transition-colors cursor-pointer" onClick={() => setSelectedEpic(epic)}>
                     <div className={`w-2 h-10 rounded-full ${colorBg(epic.color)} shrink-0`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-800 truncate">{epic.name}</p>
@@ -816,6 +956,14 @@ export default function RoadmapPage() {
           allObjectives={allObjectives}
           onClose={() => setShowModal(false)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {selectedEpic && (
+        <EpicDetailPanel
+          epic={selectedEpic}
+          allObjectives={allObjectives}
+          onClose={() => setSelectedEpic(null)}
         />
       )}
     </div>
