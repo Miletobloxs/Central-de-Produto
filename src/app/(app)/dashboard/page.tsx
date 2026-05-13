@@ -229,14 +229,24 @@ export default function DashboardPage() {
                   <h3 className="text-sm font-bold text-gray-900">
                     {activeSprint?.name ?? "Nenhum Sprint Cadastrado"}
                   </h3>
-                  {activeSprint && !isActiveSprint && (
+                  {activeSprint?.status === "planning" && (
                     <span className="text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-full">
                       planejando
                     </span>
                   )}
-                  {isActiveSprint && (
+                  {activeSprint?.status === "active" && (
                     <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded-full">
                       ativo
+                    </span>
+                  )}
+                  {activeSprint?.status === "review" && (
+                    <span className="text-[10px] font-semibold bg-purple-50 text-purple-600 border border-purple-100 px-1.5 py-0.5 rounded-full">
+                      em review
+                    </span>
+                  )}
+                  {activeSprint?.status === "completed" && (
+                    <span className="text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded-full">
+                      concluído
                     </span>
                   )}
                 </div>

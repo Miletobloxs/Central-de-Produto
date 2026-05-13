@@ -423,9 +423,10 @@ export default function SprintReviewPage() {
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
                       sprint.status === "active"    ? "bg-blue-50 text-blue-600" :
                       sprint.status === "completed" ? "bg-emerald-50 text-emerald-600" :
+                      sprint.status === "review"    ? "bg-purple-50 text-purple-600" :
                       "bg-gray-100 text-gray-500"
                     }`}>
-                      {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : "Planejando"}
+                      {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : sprint.status === "review" ? "Em Review" : "Planejando"}
                     </span>
                     {hasReview && (
                       <span className="text-[10px] font-semibold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-md">

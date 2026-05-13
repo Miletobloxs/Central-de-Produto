@@ -938,11 +938,13 @@ export default function SprintsPage() {
                       className={`shrink-0 text-[10px] font-semibold border rounded-lg px-1.5 py-1 cursor-pointer focus:outline-none focus:border-blue-300 ${
                         s.status === "active"    ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
                         s.status === "planning"  ? "border-amber-200 bg-amber-50 text-amber-700" :
+                        s.status === "review"    ? "border-purple-200 bg-purple-50 text-purple-700" :
                         "border-gray-200 bg-gray-100 text-gray-500"
                       }`}
                     >
                       <option value="planning">Planejando</option>
                       <option value="active">Ativo</option>
+                      <option value="review">Em Review</option>
                       <option value="completed">Concluído</option>
                     </select>
                   </div>

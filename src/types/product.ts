@@ -1,4 +1,4 @@
-export type SprintStatus = "planning" | "active" | "completed";
+export type SprintStatus = "planning" | "active" | "review" | "completed";
 export type TaskStatus = "todo" | "in_progress" | "review" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 export type MoscowPriority = "must" | "should" | "could" | "wont";

@@ -225,9 +225,9 @@ export default function AnalyticsPage() {
     const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
     const statusLabel = (s: string) =>
-      s === "active" ? "Ativo" : s === "completed" ? "Concluído" : "Planejando";
+      s === "active" ? "Ativo" : s === "completed" ? "Concluído" : s === "review" ? "Em Review" : "Planejando";
     const statusBadgeClass = (s: string) =>
-      s === "active" ? "#dbeafe;color:#1d4ed8" : s === "completed" ? "#d1fae5;color:#065f46" : "#fef3c7;color:#92400e";
+      s === "active" ? "#dbeafe;color:#1d4ed8" : s === "completed" ? "#d1fae5;color:#065f46" : s === "review" ? "#ede9fe;color:#6d28d9" : "#fef3c7;color:#92400e";
     const progressColor = (pct: number) =>
       pct >= 70 ? "#10b981" : pct >= 40 ? "#f59e0b" : "#ef4444";
 

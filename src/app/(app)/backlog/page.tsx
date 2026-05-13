@@ -217,7 +217,7 @@ export default function BacklogPage() {
     setLoading(true);
     const [{ data: itemData }, { data: sprintData }] = await Promise.all([
       supabase.from("backlog_items").select("*").order("position", { ascending: true }),
-      supabase.from("sprints").select("id, name, status").in("status", ["active", "planning"]),
+      supabase.from("sprints").select("id, name, status").in("status", ["active", "planning", "review"]),
     ]);
     setItems(itemData ?? []);
     setActiveSprints((sprintData ?? []) as Sprint[]);
