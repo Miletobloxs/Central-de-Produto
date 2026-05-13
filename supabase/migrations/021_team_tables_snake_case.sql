@@ -1,9 +1,14 @@
 -- Migration 021: Cria tabelas de equipe em snake_case
--- Substitui as tabelas PascalCase criadas nas migrations 016/019
--- que eram incompatíveis com o Supabase PostgREST
+-- Dropa tabelas criadas pelo Prisma (id TEXT/cuid) que causam
+-- conflito de tipo ao referenciar com UUID foreign key.
 
--- ─── team_groups ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS team_groups (
+-- ─── Drop existentes (criadas pelo Prisma com id TEXT) ────────
+DROP TABLE IF EXISTS user_invites  CASCADE;
+DROP TABLE IF EXISTS team_members  CASCADE;
+DROP TABLE IF EXISTS team_groups   CASCADE;
+
+-- ─── team_groups ──────────────────────────────────────────────
+CREATE TABLE team_groups (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        TEXT NOT NULL UNIQUE,
   description TEXT,
@@ -11,8 +16,8 @@ CREATE TABLE IF NOT EXISTS team_groups (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ─── team_members ────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS team_members (
+-- ─── team_members ─────────────────────────────────────────────
+CREATE TABLE team_members (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email      TEXT NOT NULL UNIQUE,
   name       TEXT,
@@ -23,7 +28,7 @@ CREATE TABLE IF NOT EXISTS team_members (
 );
 
 -- ─── user_invites ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS user_invites (
+CREATE TABLE user_invites (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email      TEXT NOT NULL,
   role       TEXT NOT NULL DEFAULT 'BLOXXS_TEAM',
@@ -39,17 +44,9 @@ ALTER TABLE team_groups  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_invites ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS rls_team_groups  ON team_groups;
-DROP POLICY IF EXISTS rls_team_members ON team_members;
-DROP POLICY IF EXISTS rls_user_invites ON user_invites;
-DROP POLICY IF EXISTS rls_user_invites_anon ON user_invites;
-
--- Membros autenticados têm acesso total
 CREATE POLICY rls_team_groups  ON team_groups  FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY rls_team_members ON team_members FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY rls_user_invites ON user_invites FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
--- Anon pode ler convites para validar token (fluxo de aceitar convite)
 CREATE POLICY rls_user_invites_anon ON user_invites FOR SELECT TO anon USING (true);
 
 -- ─── Grants ───────────────────────────────────────────────────
