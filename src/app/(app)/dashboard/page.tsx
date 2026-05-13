@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+const now = new Date();
+const currentQuarter = `Q${Math.ceil((now.getMonth() + 1) / 3)} ${now.getFullYear()}`;
 import type { Sprint, Task, BacklogItem, Objective } from "@/types/product";
 import {
   TrendingUp,
@@ -81,11 +84,8 @@ function TaskRow({ task }: { task: Task }) {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(true);
-
-  const now = new Date();
-  const currentQuarter = `Q${Math.ceil((now.getMonth() + 1) / 3)} ${now.getFullYear()}`;
 
   const [activeSprint, setActiveSprint] = useState<Sprint | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -94,12 +94,6 @@ export default function DashboardPage() {
   const [objectives, setObjectives] = useState<Objective[]>([]);
 
   const fetchDashboard = useCallback(async () => {
-    if (!supabase) {
-      console.warn("DEBUG: fetchDashboard skipped - supabase is null.");
-      setLoading(false);
-      return;
-    }
-    
     setLoading(true);
 
     try {
@@ -145,19 +139,13 @@ export default function DashboardPage() {
         .eq("quarter", currentQuarter);
       setObjectives(objData ?? []);
     } catch (err) {
-      console.error("DEBUG: fetchDashboard failed:", err);
+      console.error("[DashboardPage] fetchDashboard:", err);
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, currentQuarter]);
 
-  useEffect(() => { 
-    if (supabase) {
-      fetchDashboard(); 
-    } else {
-      setLoading(false);
-    }
-  }, [fetchDashboard, supabase]);
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
   // KPI calculations
   const totalPoints   = tasks.reduce((s, t) => s + (t.story_points ?? 0), 0);
@@ -232,7 +220,7 @@ export default function DashboardPage() {
             iconColor="text-amber-600"
           />
           <KPICard
-            label="OKRs {currentQuarter}"
+            label={`OKRs ${currentQuarter}`}
             value={`${okrProgress}%`}
             sub={`${objectives.length} objetivos ativos`}
             icon={Target}
@@ -298,7 +286,7 @@ export default function DashboardPage() {
 
           {/* OKR Summary */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-4">OKRs — Q1 2026</h3>
+            <h3 className="text-sm font-bold text-gray-900 mb-4">OKRs — {currentQuarter}</h3>
             {objectives.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-8">Sem objetivos cadastrados</p>
             ) : (
