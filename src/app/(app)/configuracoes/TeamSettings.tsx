@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Shield, Trash2, UserPlus, Clock, Mail, CheckCircle2, Loader2, Settings2 } from "lucide-react";
+import { Users, Shield, Trash2, UserPlus, Clock, Mail, CheckCircle2, Loader2, Settings2, Copy, Link } from "lucide-react";
 import { UserRole } from "@/lib/types/enums";
 import { TeamGroup, TeamUser, TeamInvite } from "@/lib/services/team.service";
 import { InviteModal } from "./InviteModal";
@@ -333,34 +333,37 @@ export function TeamSettings({ groups, users, invites, isLoading, onRefresh, int
                         ) : (
                             <div className="space-y-4">
                                 {invites.map((invite) => (
-                                    <div key={invite.id} className="flex items-center justify-between p-5 bg-gray-50/50 rounded-2xl border border-gray-100 border-l-4 border-l-amber-400">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-100">
-                                                <Mail className="text-amber-500" size={20} />
+                                    <div key={invite.id} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 border-l-4 border-l-amber-400 gap-3">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center border border-gray-100 shrink-0">
+                                                <Mail className="text-amber-500" size={16} />
                                             </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900">{invite.email}</p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                                        {internalRoles[invite.role] || invite.role}
-                                                    </span>
-                                                    {invite.groupId && (
-                                                        <>
-                                                            <div className="w-1 h-1 bg-gray-300 rounded-full" />
-                                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                                                {groups.find(g => g.id === invite.groupId)?.name}
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                </div>
+                                            <div className="min-w-0">
+                                                <p className="font-bold text-gray-900 truncate text-sm">{invite.email}</p>
+                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                    {internalRoles[invite.role] || invite.role}
+                                                </span>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => handleDeleteInvite(invite.id)}
-                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-xl transition-all shadow-sm"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                                onClick={() => {
+                                                    const link = `${window.location.origin}/invite?token=${invite.token}`;
+                                                    navigator.clipboard.writeText(link);
+                                                    toast.success("Link copiado!", { description: invite.email });
+                                                }}
+                                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                                                title="Copiar link de convite"
+                                            >
+                                                <Copy size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteInvite(invite.id)}
+                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
