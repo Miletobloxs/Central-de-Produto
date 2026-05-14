@@ -52,64 +52,39 @@ function InviteContent() {
     setLoading(true);
 
     const supabase = createClient();
-    
+
     try {
-      // 1. Sign Up the user to Supabase
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: invite.email,
-        password: password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-          data: {
-            name: invite.email.split('@')[0], // Default name
-          }
-        }
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("Falha ao criar usuário.");
-
-      // 2. Accept Invite via our API (Bypass)
+      // Server creates the auth user with email auto-confirmed (no email step needed)
       const acceptResponse = await fetch("/api/team/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          action: "acceptInvite", 
-          data: { 
-            token, 
-            supabaseUser: {
-              id: authData.user.id,
-              email: authData.user.email,
-              user_metadata: authData.user.user_metadata
-            } 
-          } 
+        body: JSON.stringify({
+          action: "acceptInvite",
+          data: { token, password },
         }),
       });
 
       const acceptData = await acceptResponse.json();
       if (acceptData.error) throw new Error(acceptData.error);
 
+      // Sign in immediately — user is already confirmed
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: invite.email,
+        password,
+      });
+      if (signInError) throw signInError;
+
       toast.success("Bem-vindo(a)!", {
         description: "Seu cadastro foi concluído com sucesso. Redirecionando..."
       });
 
-      // Auto-redirect after 3s to let them see success
       setTimeout(() => {
         router.push("/dashboard");
         router.refresh();
       }, 3000);
     } catch (err: any) {
       console.error("Invite Error:", err);
-      const isAlreadyRegistered = err.message?.includes("User already registered");
-      
-      if (isAlreadyRegistered) {
-        setError("Este e-mail já está cadastrado no sistema.");
-        toast.info("E-mail já cadastrado", {
-          description: "Você já possui uma conta. Tente fazer login diretamente."
-        });
-      } else {
-        setError(err.message || "Falha ao concluir cadastro.");
-      }
+      setError(err.message || "Falha ao concluir cadastro.");
       setLoading(false);
     }
   }

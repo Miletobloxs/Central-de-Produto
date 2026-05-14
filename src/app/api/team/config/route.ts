@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { teamService } from "@/lib/services/team.service";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { UserRole } from "@/lib/types/enums";
 
 export async function GET() {
@@ -39,7 +40,47 @@ export async function POST(request: Request) {
             return NextResponse.json(invite ?? { error: "Convite inválido ou expirado" });
         }
         if (action === "acceptInvite") {
-            const user = await teamService.acceptInvite(data.token, data.supabaseUser);
+            const { token, password, supabaseUser } = data;
+
+            // Legacy flow: frontend already created the auth user
+            if (!password && supabaseUser) {
+                const user = await teamService.acceptInvite(token, supabaseUser);
+                return NextResponse.json(user);
+            }
+
+            // New flow: server creates auth user with email auto-confirmed
+            const invite = await teamService.validateInvite(token);
+            if (!invite) return NextResponse.json({ error: "Convite inválido ou expirado" }, { status: 400 });
+
+            const admin = createAdminClient();
+            let supabaseUserId: string;
+
+            const { data: created, error: createErr } = await admin.auth.admin.createUser({
+                email: invite.email,
+                password,
+                email_confirm: true,
+                user_metadata: { name: invite.email.split("@")[0] },
+            });
+
+            if (createErr) {
+                // User already exists in Supabase Auth — find them and update password
+                const { data: userList } = await admin.auth.admin.listUsers({ perPage: 1000 });
+                const existing = (userList as any)?.users?.find((u: any) => u.email === invite.email);
+                if (!existing) return NextResponse.json({ error: createErr.message }, { status: 400 });
+                supabaseUserId = existing.id;
+                await admin.auth.admin.updateUserById(supabaseUserId, {
+                    password,
+                    email_confirm: true,
+                });
+            } else {
+                supabaseUserId = created.user.id;
+            }
+
+            const user = await teamService.acceptInvite(token, {
+                id: supabaseUserId,
+                email: invite.email,
+                user_metadata: { name: invite.email.split("@")[0] },
+            });
             return NextResponse.json(user);
         }
 
