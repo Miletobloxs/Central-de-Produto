@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, X, Loader2, Layers, Calendar, Target, Zap, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
+import { Plus, X, Loader2, Layers, Calendar, Target, Zap, ChevronDown, ChevronRight, AlertCircle, Pencil, Check } from "lucide-react";
 import type { Sprint, Task } from "@/types/product";
 import { getCurrentUserAction } from "@/lib/actions/auth.actions";
 import { accessService, UserAccessInfo } from "@/lib/services/access.service";
-import { createEpicAction, linkSprintsToEpicAction, getEpicsAction } from "@/lib/actions/roadmap.actions";
+import { createEpicAction, updateEpicAction, linkSprintsToEpicAction, getEpicsAction } from "@/lib/actions/roadmap.actions";
 
 // ─── Types ────────────────────────────────────────────────────
 type EpicStatus = "planned" | "in_progress" | "completed" | "delayed";
@@ -150,7 +150,7 @@ function buildLanes(streamEpics: Epic[], timelineStart: Date, totalMonths: numbe
   return lanes.length ? lanes : [[]];
 }
 
-// ─── Painel de detalhes do Épico (somente leitura) ───────────
+// ─── Helpers ──────────────────────────────────────────────────
 function formatEstimate(hours: number): string {
   if (!hours || hours <= 0) return "";
   if (hours < 8) return `${hours}h`;
@@ -158,26 +158,135 @@ function formatEstimate(hours: number): string {
   return `${days % 1 === 0 ? days : days.toFixed(1)}d`;
 }
 
+function toInputDate(d: string | Date | null | undefined): string {
+  if (!d) return "";
+  return new Date(d).toISOString().split("T")[0];
+}
+
+const SPRINT_STATUS_LABEL: Record<string, string> = {
+  active: "Ativo", completed: "Concluído", review: "Em Review", planning: "Planejando",
+};
+const SPRINT_STATUS_COLOR: Record<string, string> = {
+  active: "bg-blue-50 text-blue-600", completed: "bg-emerald-50 text-emerald-600",
+  review: "bg-purple-50 text-purple-600", planning: "bg-gray-100 text-gray-500",
+};
+
+// ─── Painel de détalhes / edição do Épico ─────────────────────
 function EpicDetailPanel({
   epic,
   allObjectives,
+  allSprints,
   allTasks,
+  canManage,
   onClose,
+  onUpdated,
 }: {
   epic: Epic;
   allObjectives: Objective[];
+  allSprints: Sprint[];
   allTasks: Task[];
+  canManage: boolean;
   onClose: () => void;
+  onUpdated: (updated: Epic) => void;
 }) {
-  const hex = colorHex(epic.color);
-  const statusMeta = STATUS_META[epic.status as EpicStatus] ?? STATUS_META.planned;
-  const priorityMeta = PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium;
-  const linkedObjs = allObjectives.filter((o) => epic.objectiveIds?.includes(o.id));
+  const supabase = useMemo(() => createClient(), []);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [sprintsOpen, setSprintsOpen] = useState(true);
+  const [objsOpen, setObjsOpen] = useState(true);
 
-  const sprintIds = new Set((epic.sprints ?? []).map((s) => s.id));
-  const epicTasks = allTasks.filter((t) => t.sprint_id && sprintIds.has(t.sprint_id));
+  // Edit form state — initialised from epic
+  const [form, setForm] = useState({
+    title: epic.name,
+    description: epic.description ?? "",
+    stream: epic.stream,
+    status: epic.status as EpicStatus,
+    priority: epic.priority as EpicPriority,
+    color: epic.color,
+    start_date: toInputDate(epic.startDate),
+    end_date: toInputDate(epic.endDate),
+  });
+  const [selSprintIds, setSelSprintIds] = useState<string[]>((epic.sprints ?? []).map((s) => s.id));
+  const [selObjIds, setSelObjIds] = useState<string[]>(epic.objectiveIds ?? []);
+
+  function startEditing() {
+    setForm({
+      title: epic.name,
+      description: epic.description ?? "",
+      stream: epic.stream,
+      status: epic.status as EpicStatus,
+      priority: epic.priority as EpicPriority,
+      color: epic.color,
+      start_date: toInputDate(epic.startDate),
+      end_date: toInputDate(epic.endDate),
+    });
+    setSelSprintIds((epic.sprints ?? []).map((s) => s.id));
+    setSelObjIds(epic.objectiveIds ?? []);
+    setError("");
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    if (!form.title.trim()) { setError("Título é obrigatório"); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const result = await updateEpicAction({
+        id: epic.id,
+        name: form.title.trim(),
+        description: form.description.trim() || undefined,
+        stream: form.stream,
+        status: form.status,
+        priority: form.priority,
+        color: form.color,
+        startDate: form.start_date ? new Date(form.start_date) : undefined,
+        endDate: form.end_date ? new Date(form.end_date) : undefined,
+      });
+      if (!result.success) { setError(result.error); return; }
+
+      // Sync sprint links
+      const prevIds = new Set<string>((epic.sprints ?? []).map((s) => s.id));
+      const nextIds = new Set<string>(selSprintIds);
+      const toUnlink = selSprintIds.length > 0 || prevIds.size > 0
+        ? [...prevIds].filter((id) => !nextIds.has(id)) : [];
+      const toLink = [...nextIds].filter((id) => !prevIds.has(id));
+      if (toUnlink.length) await supabase.from("sprints").update({ epic_id: null }).in("id", toUnlink);
+      if (toLink.length)   await supabase.from("sprints").update({ epic_id: epic.id }).in("id", toLink);
+
+      // Sync objective links
+      const prevObjIds = new Set<string>(epic.objectiveIds ?? []);
+      const nextObjIds = new Set<string>(selObjIds);
+      const toUnlinkObjs = [...prevObjIds].filter((id) => !nextObjIds.has(id));
+      const toLinkObjs   = [...nextObjIds].filter((id) => !prevObjIds.has(id));
+      if (toUnlinkObjs.length) await supabase.from("objectives").update({ epic_id: null }).in("id", toUnlinkObjs);
+      if (toLinkObjs.length)   await supabase.from("objectives").update({ epic_id: epic.id }).in("id", toLinkObjs);
+
+      const updatedSprints = allSprints.filter((s) => selSprintIds.includes(s.id));
+      onUpdated({
+        ...result.data,
+        sprints: updatedSprints,
+        objectiveIds: selObjIds,
+      });
+      setEditing(false);
+    } catch (err: any) {
+      setError(err.message || "Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ── View mode data ──────────────────────────────────────────
+  const hex = colorHex(epic.color);
+  const statusMeta   = STATUS_META[epic.status as EpicStatus] ?? STATUS_META.planned;
+  const priorityMeta = PRIORITY_META[epic.priority as EpicPriority] ?? PRIORITY_META.medium;
+  const linkedObjs   = allObjectives.filter((o) => epic.objectiveIds?.includes(o.id));
+  const sprintIds    = new Set((epic.sprints ?? []).map((s) => s.id));
+  const epicTasks    = allTasks.filter((t) => t.sprint_id && sprintIds.has(t.sprint_id));
   const totalEstimate = epicTasks.reduce((s, t) => s + (t.estimate_hours ?? 0), 0);
   const doneEstimate  = epicTasks.filter((t) => t.status === "done").reduce((s, t) => s + (t.estimate_hours ?? 0), 0);
+
+  const editHex = colorHex(editing ? form.color : epic.color);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
@@ -185,137 +294,329 @@ function EpicDetailPanel({
         className="h-full w-full max-w-lg bg-white shadow-2xl flex flex-col overflow-hidden"
         onClick={(e: { stopPropagation(): void }) => e.stopPropagation()}
       >
-        {/* Header com cor do épico */}
-        <div className="flex items-start justify-between px-6 py-5 shrink-0" style={{ borderBottom: `3px solid ${hex}` }}>
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 py-4 shrink-0" style={{ borderBottom: `3px solid ${editHex}` }}>
           <div className="flex items-start gap-3 min-w-0">
-            <div className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ background: hex }} />
+            <div className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ background: editHex }} />
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-gray-900 leading-snug">{epic.name}</h2>
-              <p className="text-xs text-gray-500 mt-0.5">{epic.stream}</p>
+              <h2 className="text-base font-bold text-gray-900 leading-snug truncate">
+                {editing ? form.title || "Novo título…" : epic.name}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">{editing ? form.stream : epic.stream}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 ml-3 shrink-0">
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-1 ml-3 shrink-0">
+            {canManage && !editing && (
+              <button
+                type="button" onClick={startEditing}
+                className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors"
+              >
+                <Pencil size={12} /> Editar
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Status + Prioridade */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusMeta.color}`}>
-              {statusMeta.label}
-            </span>
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${priorityMeta.color}`}>
-              Prioridade {priorityMeta.label}
-            </span>
-          </div>
-
-          {/* Descrição */}
-          {epic.description && (
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Descrição</p>
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{epic.description}</p>
-            </div>
-          )}
-
-          {/* Datas */}
-          {(epic.startDate || epic.endDate) && (
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Período no Roadmap</p>
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <Calendar size={13} className="text-blue-500 shrink-0" />
-                {epic.startDate && (
-                  <span>{new Date(epic.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</span>
-                )}
-                {epic.startDate && epic.endDate && <span className="text-gray-400">→</span>}
-                {epic.endDate && (
-                  <span>{new Date(epic.endDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</span>
-                )}
+        {/* ── EDIT MODE ────────────────────────────────────────── */}
+        {editing ? (
+          <>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Título */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Título *</label>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                />
               </div>
-            </div>
-          )}
-          {!epic.startDate && (
-            <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl">
-              <AlertCircle size={13} className="shrink-0" />
-              Este épico não tem datas definidas e não aparece no timeline.
-            </div>
-          )}
 
-          {/* Estimativa do épico */}
-          {totalEstimate > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-blue-50 rounded-xl px-3 py-2.5 text-center">
-                <p className="text-sm font-bold text-blue-700">{formatEstimate(totalEstimate)}</p>
-                <p className="text-[10px] text-blue-500 mt-0.5">Total estimado</p>
+              {/* Descrição */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Descrição</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 resize-none"
+                />
               </div>
-              <div className="bg-emerald-50 rounded-xl px-3 py-2.5 text-center">
-                <p className="text-sm font-bold text-emerald-700">{formatEstimate(doneEstimate)}</p>
-                <p className="text-[10px] text-emerald-500 mt-0.5">Entregue</p>
-              </div>
-              <div className="bg-amber-50 rounded-xl px-3 py-2.5 text-center">
-                <p className="text-sm font-bold text-amber-700">{formatEstimate(totalEstimate - doneEstimate)}</p>
-                <p className="text-[10px] text-amber-500 mt-0.5">Restante</p>
-              </div>
-            </div>
-          )}
 
-          {/* Sprints vinculadas */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Sprints vinculadas
-              {(epic.sprints?.length ?? 0) > 0 && (
-                <span className="ml-1.5 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-[10px] normal-case">
-                  {epic.sprints!.length}
-                </span>
-              )}
-            </p>
-            {(epic.sprints?.length ?? 0) === 0 ? (
-              <p className="text-xs text-gray-400">Nenhuma sprint vinculada</p>
-            ) : (
-              <div className="space-y-1.5">
-                {epic.sprints!.map((sprint) => (
-                  <div key={sprint.id} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl">
-                    <Zap size={11} className="text-blue-500 shrink-0" />
-                    <span className="text-sm text-gray-700 flex-1 truncate">{sprint.name}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${
-                      sprint.status === "active" ? "bg-blue-50 text-blue-600" :
-                      sprint.status === "completed" ? "bg-emerald-50 text-emerald-600" :
-                      sprint.status === "review" ? "bg-purple-50 text-purple-600" :
-                      "bg-gray-100 text-gray-500"
-                    }`}>
-                      {sprint.status === "active" ? "Ativo" : sprint.status === "completed" ? "Concluído" : sprint.status === "review" ? "Em Review" : "Planejando"}
+              {/* Stream */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Stream / Área</label>
+                <select
+                  value={form.stream}
+                  onChange={(e) => setForm((f) => ({ ...f, stream: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+                >
+                  {STREAMS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              {/* Status + Prioridade */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Status</label>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as EpicStatus }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+                  >
+                    {(Object.entries(STATUS_META) as [EpicStatus, { label: string }][]).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Prioridade</label>
+                  <select
+                    value={form.priority}
+                    onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as EpicPriority }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+                  >
+                    {(Object.entries(PRIORITY_META) as [EpicPriority, { label: string }][]).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Datas */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                  <Calendar size={12} className="text-blue-500" /> Período no Roadmap
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-gray-400 mb-1">Início</label>
+                    <input
+                      type="date" value={form.start_date}
+                      onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-400 mb-1">Fim</label>
+                    <input
+                      type="date" value={form.end_date}
+                      onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Cor */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">Cor do Épico</label>
+                <div className="flex gap-2 flex-wrap">
+                  {COLORS.map((c) => (
+                    <button
+                      key={c.id} type="button"
+                      onClick={() => setForm((f) => ({ ...f, color: c.id }))}
+                      className={`w-7 h-7 rounded-full ${c.bg} transition-transform ${
+                        form.color === c.id ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : "opacity-60 hover:opacity-100 hover:scale-105"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Sprints */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <button
+                  type="button" onClick={() => setSprintsOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Zap size={13} className="text-blue-500" />
+                    <span className="text-xs font-semibold text-gray-700">
+                      Sprints vinculadas
+                      {selSprintIds.length > 0 && (
+                        <span className="ml-1.5 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-[10px]">{selSprintIds.length}</span>
+                      )}
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* OKRs vinculados */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              OKRs vinculados
-              {linkedObjs.length > 0 && (
-                <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] normal-case">
-                  {linkedObjs.length}
-                </span>
-              )}
-            </p>
-            {linkedObjs.length === 0 ? (
-              <p className="text-xs text-gray-400">Nenhum OKR vinculado</p>
-            ) : (
-              <div className="space-y-1.5">
-                {linkedObjs.map((obj) => (
-                  <div key={obj.id} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl">
-                    <Target size={11} className="text-purple-500 shrink-0" />
-                    <span className="text-sm text-gray-700 flex-1 truncate">{obj.title}</span>
-                    <span className="text-[10px] text-gray-400 shrink-0">{obj.quarter}</span>
+                  {sprintsOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                </button>
+                {sprintsOpen && (
+                  <div className="max-h-40 overflow-y-auto">
+                    {allSprints.length === 0 ? (
+                      <p className="text-xs text-gray-400 px-4 py-3">Nenhuma sprint cadastrada</p>
+                    ) : allSprints.map((sprint) => {
+                      const checked = selSprintIds.includes(sprint.id);
+                      return (
+                        <label key={sprint.id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer border-t border-gray-50 transition-colors ${checked ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                          <input type="checkbox" checked={checked} onChange={() => setSelSprintIds((p) => checked ? p.filter((x) => x !== sprint.id) : [...p, sprint.id])} className="accent-blue-600 w-3.5 h-3.5 shrink-0" />
+                          <span className="text-sm text-gray-700 flex-1 truncate">{sprint.name}</span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${SPRINT_STATUS_COLOR[sprint.status] ?? "bg-gray-100 text-gray-500"}`}>
+                            {SPRINT_STATUS_LABEL[sprint.status] ?? sprint.status}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
+              </div>
+
+              {/* OKRs */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <button
+                  type="button" onClick={() => setObjsOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Target size={13} className="text-purple-500" />
+                    <span className="text-xs font-semibold text-gray-700">
+                      OKRs vinculados
+                      {selObjIds.length > 0 && (
+                        <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px]">{selObjIds.length}</span>
+                      )}
+                    </span>
+                  </div>
+                  {objsOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                </button>
+                {objsOpen && (
+                  <div className="max-h-40 overflow-y-auto">
+                    {allObjectives.length === 0 ? (
+                      <p className="text-xs text-gray-400 px-4 py-3">Nenhum objetivo cadastrado</p>
+                    ) : allObjectives.map((obj) => {
+                      const checked = selObjIds.includes(obj.id);
+                      return (
+                        <label key={obj.id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer border-t border-gray-50 transition-colors ${checked ? "bg-purple-50" : "hover:bg-gray-50"}`}>
+                          <input type="checkbox" checked={checked} onChange={() => setSelObjIds((p) => checked ? p.filter((x) => x !== obj.id) : [...p, obj.id])} className="accent-purple-600 w-3.5 h-3.5 shrink-0" />
+                          <span className="text-sm text-gray-700 flex-1 truncate">{obj.title}</span>
+                          <span className="text-[10px] text-gray-400 shrink-0">{obj.quarter}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {error}</p>
+              )}
+            </div>
+
+            {/* Edit footer */}
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0">
+              <button type="button" onClick={() => setEditing(false)}
+                className="flex-1 px-4 py-2.5 text-sm text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button type="button" onClick={handleSave} disabled={saving}
+                className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {saving ? "Salvando…" : "Salvar"}
+              </button>
+            </div>
+          </>
+        ) : (
+          /* ── VIEW MODE ─────────────────────────────────────── */
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            {/* Status + Prioridade */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusMeta.color}`}>{statusMeta.label}</span>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${priorityMeta.color}`}>Prioridade {priorityMeta.label}</span>
+            </div>
+
+            {/* Descrição */}
+            {epic.description && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Descrição</p>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{epic.description}</p>
               </div>
             )}
+
+            {/* Datas */}
+            {(epic.startDate || epic.endDate) ? (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Período no Roadmap</p>
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <Calendar size={13} className="text-blue-500 shrink-0" />
+                  {epic.startDate && <span>{new Date(epic.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                  {epic.startDate && epic.endDate && <span className="text-gray-400">→</span>}
+                  {epic.endDate && <span>{new Date(epic.endDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl">
+                <AlertCircle size={13} className="shrink-0" />
+                Este épico não tem datas — não aparece no timeline.
+                {canManage && <button type="button" onClick={startEditing} className="underline ml-1 font-semibold">Adicionar datas</button>}
+              </div>
+            )}
+
+            {/* Estimativas */}
+            {totalEstimate > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-blue-50 rounded-xl px-3 py-2.5 text-center">
+                  <p className="text-sm font-bold text-blue-700">{formatEstimate(totalEstimate)}</p>
+                  <p className="text-[10px] text-blue-500 mt-0.5">Total estimado</p>
+                </div>
+                <div className="bg-emerald-50 rounded-xl px-3 py-2.5 text-center">
+                  <p className="text-sm font-bold text-emerald-700">{formatEstimate(doneEstimate)}</p>
+                  <p className="text-[10px] text-emerald-500 mt-0.5">Entregue</p>
+                </div>
+                <div className="bg-amber-50 rounded-xl px-3 py-2.5 text-center">
+                  <p className="text-sm font-bold text-amber-700">{formatEstimate(totalEstimate - doneEstimate)}</p>
+                  <p className="text-[10px] text-amber-500 mt-0.5">Restante</p>
+                </div>
+              </div>
+            )}
+
+            {/* Sprints */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Sprints vinculadas
+                {(epic.sprints?.length ?? 0) > 0 && <span className="ml-1.5 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-[10px] normal-case">{epic.sprints!.length}</span>}
+              </p>
+              {(epic.sprints?.length ?? 0) === 0 ? (
+                <p className="text-xs text-gray-400">Nenhuma sprint vinculada</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {epic.sprints!.map((sprint) => (
+                    <div key={sprint.id} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl">
+                      <Zap size={11} className="text-blue-500 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1 truncate">{sprint.name}</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${SPRINT_STATUS_COLOR[sprint.status] ?? "bg-gray-100 text-gray-500"}`}>
+                        {SPRINT_STATUS_LABEL[sprint.status] ?? sprint.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* OKRs */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                OKRs vinculados
+                {linkedObjs.length > 0 && <span className="ml-1.5 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] normal-case">{linkedObjs.length}</span>}
+              </p>
+              {linkedObjs.length === 0 ? (
+                <p className="text-xs text-gray-400">Nenhum OKR vinculado</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {linkedObjs.map((obj) => (
+                    <div key={obj.id} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50 rounded-xl">
+                      <Target size={11} className="text-purple-500 shrink-0" />
+                      <span className="text-sm text-gray-700 flex-1 truncate">{obj.title}</span>
+                      <span className="text-[10px] text-gray-400 shrink-0">{obj.quarter}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -1000,8 +1301,14 @@ export default function RoadmapPage() {
         <EpicDetailPanel
           epic={selectedEpic}
           allObjectives={allObjectives}
+          allSprints={allSprints}
           allTasks={allTasks}
+          canManage={canManage}
           onClose={() => setSelectedEpic(null)}
+          onUpdated={(updated: Epic) => {
+            setEpics((prev: Epic[]) => prev.map((e: Epic) => e.id === updated.id ? updated : e));
+            setSelectedEpic(updated);
+          }}
         />
       )}
     </div>

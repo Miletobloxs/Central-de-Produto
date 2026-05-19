@@ -1,6 +1,6 @@
 "use server";
 
-import { roadmapService, type CreateEpicDTO } from "@/lib/services/roadmap.service";
+import { roadmapService, type CreateEpicDTO, type UpdateEpicDTO } from "@/lib/services/roadmap.service";
 import { revalidatePath } from "next/cache";
 import { getRequiredSession } from "@/lib/auth";
 import { accessService } from "@/lib/services/access.service";
@@ -35,6 +35,21 @@ export async function createEpicAction(data: CreateEpicDTO): Promise<{ success: 
     } catch (err: any) {
         console.error("[createEpicAction]", err);
         return { success: false, error: err.message || "Erro ao criar épico." };
+    }
+}
+
+export async function updateEpicAction(data: UpdateEpicDTO): Promise<{ success: true; data: any } | { success: false; error: string }> {
+    try {
+        const user = await getRequiredSession();
+        if (!accessService.can(user, 'MANAGE_ROADMAP')) {
+            return { success: false, error: "Permissão insuficiente para editar épicos." };
+        }
+        const epic = await roadmapService.updateEpic(data);
+        revalidatePath("/roadmap");
+        return { success: true, data: epic };
+    } catch (err: any) {
+        console.error("[updateEpicAction]", err);
+        return { success: false, error: err.message || "Erro ao atualizar épico." };
     }
 }
 

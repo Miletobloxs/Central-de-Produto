@@ -11,6 +11,10 @@ export interface CreateEpicDTO {
     endDate?: Date;
 }
 
+export interface UpdateEpicDTO extends Partial<CreateEpicDTO> {
+    id: string;
+}
+
 function mapEpicRow(row: any) {
     return {
         id: row.id,
@@ -74,6 +78,31 @@ export class RoadmapService {
                     ? new Date(data.endDate).toISOString().split("T")[0]
                     : null,
             })
+            .select("*, sprints(*)")
+            .single();
+
+        if (error) throw error;
+        return mapEpicRow(epic);
+    }
+
+    async updateEpic(data: UpdateEpicDTO) {
+        const supabase = await createClient();
+        if (!supabase) throw new Error("Supabase client unavailable");
+
+        const patch: Record<string, unknown> = {};
+        if (data.name !== undefined) patch.name = data.name;
+        if (data.description !== undefined) patch.description = data.description ?? null;
+        if (data.stream !== undefined) patch.stream = data.stream;
+        if (data.status !== undefined) patch.status = data.status;
+        if (data.priority !== undefined) patch.priority = data.priority;
+        if (data.color !== undefined) patch.color = data.color;
+        if ("startDate" in data) patch.start_date = data.startDate ? new Date(data.startDate).toISOString().split("T")[0] : null;
+        if ("endDate" in data) patch.end_date = data.endDate ? new Date(data.endDate).toISOString().split("T")[0] : null;
+
+        const { data: epic, error } = await supabase
+            .from("epics")
+            .update(patch)
+            .eq("id", data.id)
             .select("*, sprints(*)")
             .single();
 
