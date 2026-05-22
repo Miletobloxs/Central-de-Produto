@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { teamService } from "@/lib/services/team.service";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { UserRole } from "@/lib/types/enums";
+import { UserRole, InviteStatus } from "@/lib/types/enums";
 import { randomBytes } from "crypto";
 
-// Anon client for public reads (no service role needed, requires RLS policy)
+// Anon client for public reads (no service role needed)
 function createAnonClient() {
     return createSupabaseClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,15 +48,14 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { action, id, data } = body;
 
-        // ── Public actions (no auth required) ────────────────────────────────
+        // ── Public: validate invite token (anon, no auth required) ───────────
         if (action === "validateInvite") {
-            // Uses anon client — requires migration 024 (public read on user_invites)
             const anon = createAnonClient();
             const { data: row } = await anon
                 .from("user_invites")
                 .select("id, email, role, group_id, token, status, expires_at")
                 .eq("token", data.token)
-                .eq("status", "pendente")
+                .eq("status", InviteStatus.PENDENTE)
                 .gt("expires_at", new Date().toISOString())
                 .maybeSingle();
 
@@ -70,46 +67,48 @@ export async function POST(request: Request) {
             });
         }
 
-        if (action === "acceptInvite") {
-            const { token, password, supabaseUser } = data;
+        // ── Semi-public: finalize invite (requires new user to be authenticated) ──
+        // The invite page does supabase.auth.signUp() first, then calls this.
+        // No service role key needed — uses the new user's own session.
+        if (action === "finalizeInvite") {
+            const supabase = await createClient();
+            if (!supabase) return NextResponse.json({ error: "Supabase unavailable" }, { status: 500 });
 
-            // Legacy path: old frontend already created the Supabase auth user
-            if (!password && supabaseUser) {
-                const user = await teamService.acceptInvite(token, supabaseUser);
-                return NextResponse.json(user);
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (!authUser) return NextResponse.json({ error: "Não autorizado — faça login primeiro." }, { status: 401 });
+
+            const { data: inviteRow } = await supabase
+                .from("user_invites")
+                .select("*")
+                .eq("token", data.token)
+                .eq("status", InviteStatus.PENDENTE)
+                .gt("expires_at", new Date().toISOString())
+                .maybeSingle();
+
+            if (!inviteRow) return NextResponse.json({ error: "Convite inválido ou expirado" }, { status: 400 });
+            if (inviteRow.email !== authUser.email) {
+                return NextResponse.json({ error: "Este convite foi enviado para outro e-mail." }, { status: 400 });
             }
 
-            // New path: server creates auth user with email auto-confirmed
-            const invite = await teamService.validateInvite(token);
-            if (!invite) return NextResponse.json({ error: "Convite inválido ou expirado" }, { status: 400 });
+            const name =
+                authUser.user_metadata?.name ||
+                authUser.user_metadata?.full_name ||
+                authUser.email?.split("@")[0] || "Usuário";
 
-            const admin = createAdminClient();
-            let supabaseUserId: string;
+            const { error: upsertError } = await supabase
+                .from("team_members")
+                .upsert(
+                    { id: authUser.id, email: authUser.email, name, role: inviteRow.role, group_id: inviteRow.group_id ?? null },
+                    { onConflict: "email" }
+                );
+            if (upsertError) throw upsertError;
 
-            const { data: created, error: createErr } = await admin.auth.admin.createUser({
-                email: invite.email,
-                password,
-                email_confirm: true,
-                user_metadata: { name: invite.email.split("@")[0] },
-            });
+            await supabase
+                .from("user_invites")
+                .update({ status: InviteStatus.ACEITO })
+                .eq("id", inviteRow.id);
 
-            if (createErr) {
-                // User already exists — find them and update password
-                const { data: userList } = await admin.auth.admin.listUsers({ perPage: 1000 });
-                const existing = (userList as any)?.users?.find((u: any) => u.email === invite.email);
-                if (!existing) return NextResponse.json({ error: createErr.message }, { status: 400 });
-                supabaseUserId = existing.id;
-                await admin.auth.admin.updateUserById(supabaseUserId, { password, email_confirm: true });
-            } else {
-                supabaseUserId = created.user.id;
-            }
-
-            const user = await teamService.acceptInvite(token, {
-                id: supabaseUserId,
-                email: invite.email,
-                user_metadata: { name: invite.email.split("@")[0] },
-            });
-            return NextResponse.json(user);
+            return NextResponse.json({ success: true });
         }
 
         // ── Authenticated admin actions ───────────────────────────────────────
@@ -119,7 +118,6 @@ export async function POST(request: Request) {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (!authUser) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-        // Check admin role using the authenticated client (no service role needed)
         const { data: member } = await supabase
             .from("team_members")
             .select("role")
@@ -206,7 +204,7 @@ export async function POST(request: Request) {
 
                 const token = randomBytes(32).toString("hex");
                 const expiresAt = new Date();
-                expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+                expiresAt.setDate(expiresAt.getDate() + 7);
 
                 const { data: inviteRow, error } = await supabase
                     .from("user_invites")
@@ -215,7 +213,7 @@ export async function POST(request: Request) {
                         role: data.role,
                         group_id: data.groupId ?? null,
                         token,
-                        status: "pendente",
+                        status: InviteStatus.PENDENTE,
                         expires_at: expiresAt.toISOString(),
                     })
                     .select().single();

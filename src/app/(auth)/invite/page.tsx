@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Eye, EyeOff, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 function InviteContent() {
@@ -17,6 +17,7 @@ function InviteContent() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"form" | "confirm-email">("form");
 
   useEffect(() => {
     if (!token) {
@@ -33,7 +34,6 @@ function InviteContent() {
           body: JSON.stringify({ action: "validateInvite", data: { token } }),
         });
         const data = await response.json();
-
         if (data.error) throw new Error(data.error);
         setInvite(data);
       } catch (err: any) {
@@ -54,34 +54,55 @@ function InviteContent() {
     const supabase = createClient();
 
     try {
-      // Server creates the auth user with email auto-confirmed (no email step needed)
-      const acceptResponse = await fetch("/api/team/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "acceptInvite",
-          data: { token, password },
-        }),
-      });
-
-      const acceptData = await acceptResponse.json();
-      if (acceptData.error) throw new Error(acceptData.error);
-
-      // Sign in immediately — user is already confirmed
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // Step 1: Sign up (or sign in if already registered)
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: invite.email,
         password,
       });
-      if (signInError) throw signInError;
+
+      if (signUpError) {
+        const msg = signUpError.message.toLowerCase();
+        if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("user already registered")) {
+          // User exists — sign in with the given password
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: invite.email,
+            password,
+          });
+          if (signInError) {
+            throw new Error("E-mail já cadastrado. Verifique sua senha.");
+          }
+        } else {
+          throw signUpError;
+        }
+      }
+
+      // Step 2: Check if we have a session (email confirmation may be required)
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        // Supabase requires email confirmation — ask user to check their inbox
+        setStep("confirm-email");
+        setLoading(false);
+        return;
+      }
+
+      // Step 3: Finalize — server links the authenticated user to team + marks invite accepted
+      const finalizeRes = await fetch("/api/team/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "finalizeInvite", data: { token } }),
+      });
+      const finalizeData = await finalizeRes.json();
+      if (finalizeData.error) throw new Error(finalizeData.error);
 
       toast.success("Bem-vindo(a)!", {
-        description: "Seu cadastro foi concluído com sucesso. Redirecionando..."
+        description: "Cadastro concluído. Redirecionando...",
       });
 
       setTimeout(() => {
         router.push("/dashboard");
         router.refresh();
-      }, 3000);
+      }, 2000);
     } catch (err: any) {
       console.error("Invite Error:", err);
       setError(err.message || "Falha ao concluir cadastro.");
@@ -106,12 +127,30 @@ function InviteContent() {
         </div>
         <h2 className="text-lg font-bold text-gray-900 mb-2">Convite Inválido</h2>
         <p className="text-sm text-gray-500 mb-6">{error || "Este link expirou ou já foi utilizado."}</p>
-        <button 
+        <button
           onClick={() => router.push("/login")}
           className="text-sm font-semibold text-blue-600 hover:text-blue-700"
         >
           Voltar para o Login
         </button>
+      </div>
+    );
+  }
+
+  if (step === "confirm-email") {
+    return (
+      <div className="text-center py-6 space-y-4">
+        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto">
+          <Mail size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-gray-900">Confirme seu e-mail</h2>
+        <p className="text-sm text-gray-500">
+          Enviamos um link de confirmação para <span className="font-semibold text-gray-700">{invite.email}</span>.
+          Clique no link para ativar sua conta e retorne a este convite para finalizar.
+        </p>
+        <p className="text-xs text-gray-400">
+          Caso não receba o e-mail, verifique a pasta de spam.
+        </p>
       </div>
     );
   }
@@ -124,7 +163,8 @@ function InviteContent() {
         </div>
         <h2 className="text-xl font-bold text-gray-900">Você foi convidado!</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Complete seu cadastro para acessar a <span className="font-semibold text-gray-700">Central de Produto</span> como <span className="text-blue-600 font-bold">{invite.role}</span>.
+          Complete seu cadastro para acessar a <span className="font-semibold text-gray-700">Central de Produto</span> como{" "}
+          <span className="text-blue-600 font-bold">{invite.role}</span>.
         </p>
       </div>
 
@@ -160,6 +200,10 @@ function InviteContent() {
             <AlertCircle size={10} /> Mínimo de 6 caracteres
           </p>
         </div>
+
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
+        )}
 
         <button
           type="submit"
