@@ -53,9 +53,8 @@ export default async function AppLayout({
   }
 
   // ── USER SYNCHRONIZATION ──
-  // Upsert the Supabase Auth user into the internal "User" table so that
-  // role-based access checks in Server Actions work correctly.
-  // Uses Supabase HTTP client (no Prisma / no direct TCP connection needed).
+  // Upsert the Supabase Auth user into team_members so that role-based
+  // access checks in the API route work correctly.
   try {
     const name =
       user.user_metadata?.name ??
@@ -63,23 +62,23 @@ export default async function AppLayout({
       user.email?.split("@")[0] ??
       "Usuário";
 
-    // Check if this is the first user — first user gets SUPER_ADMIN
+    // Check if this is the first member — first member gets SUPER_ADMIN
     const { count } = await supabase
-      .from("User")
+      .from("team_members")
       .select("*", { count: "exact", head: true });
     const defaultRole = count === 0 ? "SUPER_ADMIN" : "BLOXXS_TEAM";
 
-    // Try to insert; if email already exists just update the name
-    const { error: insertErr } = await supabase.from("User").insert({
+    // Try to insert; if ID already exists just update the name
+    const { error: insertErr } = await supabase.from("team_members").insert({
       id: user.id,
       email: user.email,
       name,
       role: defaultRole,
     });
 
-    if (insertErr && insertErr.code === "23505") {
-      // Duplicate email — only update name, never overwrite role
-      await supabase.from("User").update({ name }).eq("email", user.email!);
+    if (insertErr && (insertErr.code === "23505" || insertErr.code === "23000")) {
+      // Duplicate key (id or email) — only update name, never overwrite role
+      await supabase.from("team_members").update({ name }).eq("id", user.id);
     }
   } catch (err) {
     console.error("WARN: [APP_LAYOUT] syncUser failed (non-fatal):", err);

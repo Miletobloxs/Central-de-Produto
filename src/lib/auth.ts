@@ -22,13 +22,12 @@ export async function getRequiredSession(): Promise<UserAccessInfo & { id: strin
 
   try {
     const { data: dbUser } = await supabase
-      .from("User")
-      .select('id, email, role, "groupId"')
-      .eq("email", authUser.email)
+      .from("team_members")
+      .select("id, email, role, group_id")
+      .eq("id", authUser.id)
       .single();
 
     if (!dbUser) {
-      // User exists in Auth but not yet synced to internal DB
       return {
         id: authUser.id,
         email: authUser.email,
@@ -37,11 +36,11 @@ export async function getRequiredSession(): Promise<UserAccessInfo & { id: strin
     }
 
     let groupPermissions: string[] | undefined;
-    if (dbUser.groupId) {
+    if (dbUser.group_id) {
       const { data: group } = await supabase
-        .from("TeamGroup")
+        .from("team_groups")
         .select("permissions")
-        .eq("id", dbUser.groupId)
+        .eq("id", dbUser.group_id)
         .single();
       if (group && Array.isArray(group.permissions)) {
         groupPermissions = group.permissions;
@@ -55,7 +54,6 @@ export async function getRequiredSession(): Promise<UserAccessInfo & { id: strin
       group: groupPermissions ? { permissions: groupPermissions } : undefined,
     };
   } catch {
-    // Fallback when User table doesn't exist yet or query fails
     return {
       id: authUser.id,
       email: authUser.email,
