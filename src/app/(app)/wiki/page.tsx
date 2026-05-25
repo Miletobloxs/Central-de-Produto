@@ -50,8 +50,8 @@ const WORKSPACE_PRODUCTS = [
   },
   {
     name: "Protótipo v2",
-    url: null,
-    desc: "Protótipo da próxima versão do produto — acesso via Figma",
+    url: "https://river-hook-04846886.figma.site/home",
+    desc: "Protótipo da próxima versão do produto — Figma Site",
     env: "DESIGN",
   },
 ];
