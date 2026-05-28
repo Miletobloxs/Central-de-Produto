@@ -39,6 +39,12 @@ const IBAS_PRODUCTS = [
     desc: "App whitelabel Gaia",
     env: "HMG",
   },
+  {
+    name: "Gaia (Backoffice)",
+    url: "https://gaia.hmg.bloxs-services.com/backoffice/",
+    desc: "Painel administrativo do app whitelabel Gaia",
+    env: "HMG",
+  },
 ];
 
 const WORKSPACE_PRODUCTS = [
