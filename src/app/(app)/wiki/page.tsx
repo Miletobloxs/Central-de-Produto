@@ -73,7 +73,7 @@ const IBAS_CLIENTS: IBaaSClient[] = [
     textAccent: "text-blue-700",
     links: [
       { label: "Portal de Cadastro",  url: "https://cad.hmg.bloxs-services.com" },
-      { label: "Backoffice",          url: "https://cad.hmg.bloxs-services.com/backoffice" },
+      { label: "Backoffice",          url: "https://cad.hmg.bloxs.com.br/backoffice/login", credentials: { login: "admin@bloxs.com", password: "Bl0xs4dminBackoffice" } },
     ],
   },
 ];
