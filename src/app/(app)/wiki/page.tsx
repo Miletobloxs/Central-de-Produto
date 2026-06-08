@@ -79,8 +79,9 @@ const IBAS_CLIENTS: IBaaSClient[] = [
 ];
 
 const WORKSPACE_PRODUCTS: Product[] = [
-  { name: "Bloxs App",    url: "https://app.bloxs.com.br",                    desc: "Plataforma principal Bloxs Capital",                env: "PROD"   },
-  { name: "Protótipo v2", url: "https://river-hook-04846886.figma.site/home", desc: "Protótipo da próxima versão do produto — Figma Site", env: "DESIGN" },
+  { name: "Bloxs App",         url: "https://app.bloxs.com.br",                    desc: "Plataforma principal Bloxs Capital",                env: "PROD"   },
+  { name: "Bloxs App (HMG)",   url: "https://app.bloxs-services.com/",             desc: "Ambiente de homologação do Workspace",              env: "HMG"    },
+  { name: "Protótipo v2",      url: "https://river-hook-04846886.figma.site/home", desc: "Protótipo da próxima versão do produto — Figma Site", env: "DESIGN" },
 ];
 
 const SQUAD_TOOLS: Product[] = [
