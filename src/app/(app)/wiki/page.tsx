@@ -68,9 +68,9 @@ const IBAS_CLIENTS: IBaaSClient[] = [
     ],
   },
   {
-    name: "Cadastro",
-    accent: "bg-gray-100",
-    textAccent: "text-gray-600",
+    name: "Bloxs",
+    accent: "bg-blue-100",
+    textAccent: "text-blue-700",
     links: [
       { label: "Portal de Cadastro",  url: "https://cad.hmg.bloxs-services.com" },
       { label: "Backoffice",          url: "https://cad.hmg.bloxs-services.com/backoffice" },
