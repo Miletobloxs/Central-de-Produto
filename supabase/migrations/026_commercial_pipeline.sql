@@ -66,12 +66,15 @@ CREATE POLICY rls_commercial_activities ON commercial_activities FOR ALL TO auth
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON commercial_clients, commercial_activities TO authenticated;
 
--- ── Seed: 7 clientes iniciais ─────────────────────────────────────────────────
+-- ── Seed: clientes IBaaS / Whitelabel ────────────────────────────────────────
+-- Ativos (go-live concluído)
 INSERT INTO commercial_clients (company_name, stage, product_type, origin_channel) VALUES
-  ('Gaia Impacto Securitizadora', 'active',      ARRAY['white_label'],           'existing'),
-  ('Canal Securitizadora',        'nda',          ARRAY['ibaas', 'white_label'],  'partner'),
-  ('IB3',                         'proposal',     ARRAY['ibaas'],                 'existing'),
-  ('Neela',                       'homologation', ARRAY['white_label', 'ibaas'],  'existing'),
-  ('V3',                          'homologation', ARRAY['white_label'],           'existing'),
-  ('Rise / Omex',                 'active',       ARRAY['ca'],                    'existing'),
-  ('thecash',                     'active',       ARRAY['dcc'],                   'existing');
+  ('GAIA',                 'active',      ARRAY['white_label', 'ibaas'], 'existing'),
+  ('WelLotes',             'active',      ARRAY['white_label'],          'existing'),
+  ('IB3',                  'active',      ARRAY['ibaas'],                'existing'),
+  ('Neela',                'active',      ARRAY['white_label', 'ibaas'], 'existing'),
+-- Em tratativas
+  ('Hive Capital',         'contact',     ARRAY['ibaas'],                'inbound'),
+  ('Canal Securitizadora', 'nda',         ARRAY['white_label', 'ibaas'], 'partner'),
+  ('SM Consultoria',       'contact',     ARRAY['ibaas'],                'inbound'),
+  ('V3 Partners',          'homologation',ARRAY['white_label'],          'existing');
