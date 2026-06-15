@@ -1,8 +1,8 @@
 -- Migration 026: Gate Comercial IBaaS
--- Kanban de pipeline comercial — independente do core (épicos/sprints/OKRs).
+-- Idempotente: pode ser re-executada sem erros.
 
 -- ── commercial_clients ────────────────────────────────────────────────────────
-CREATE TABLE commercial_clients (
+CREATE TABLE IF NOT EXISTS commercial_clients (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_name        TEXT NOT NULL,
   contact_name        TEXT,
@@ -31,7 +31,7 @@ CREATE TABLE commercial_clients (
 );
 
 -- ── commercial_activities ─────────────────────────────────────────────────────
-CREATE TABLE commercial_activities (
+CREATE TABLE IF NOT EXISTS commercial_activities (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id     UUID NOT NULL REFERENCES commercial_clients(id) ON DELETE CASCADE,
   activity_type TEXT NOT NULL CHECK (activity_type IN (
@@ -53,6 +53,7 @@ RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS commercial_clients_updated_at ON commercial_clients;
 CREATE TRIGGER commercial_clients_updated_at
   BEFORE UPDATE ON commercial_clients
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -61,20 +62,25 @@ CREATE TRIGGER commercial_clients_updated_at
 ALTER TABLE commercial_clients    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE commercial_activities ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS rls_commercial_clients    ON commercial_clients;
+DROP POLICY IF EXISTS rls_commercial_activities ON commercial_activities;
+
 CREATE POLICY rls_commercial_clients    ON commercial_clients    FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY rls_commercial_activities ON commercial_activities FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON commercial_clients, commercial_activities TO authenticated;
 
 -- ── Seed: clientes IBaaS / Whitelabel ────────────────────────────────────────
--- Ativos (go-live concluído)
+-- Limpa dados antigos incorretos (Rise/Omex/thecash/duplicatas) e insere corretos.
+DELETE FROM commercial_clients WHERE company_name IN ('Rise / Omex', 'thecash', 'V3', 'Gaia Impacto Securitizadora');
+
 INSERT INTO commercial_clients (company_name, stage, product_type, origin_channel) VALUES
-  ('GAIA',                 'active',      ARRAY['white_label', 'ibaas'], 'existing'),
-  ('WelLotes',             'active',      ARRAY['white_label'],          'existing'),
-  ('IB3',                  'active',      ARRAY['ibaas'],                'existing'),
-  ('Neela',                'active',      ARRAY['white_label', 'ibaas'], 'existing'),
--- Em tratativas
-  ('Hive Capital',         'contact',     ARRAY['ibaas'],                'inbound'),
-  ('Canal Securitizadora', 'nda',         ARRAY['white_label', 'ibaas'], 'partner'),
-  ('SM Consultoria',       'contact',     ARRAY['ibaas'],                'inbound'),
-  ('V3 Partners',          'homologation',ARRAY['white_label'],          'existing');
+  ('GAIA',                 'active',       ARRAY['white_label', 'ibaas'], 'existing'),
+  ('WelLotes',             'active',       ARRAY['white_label'],          'existing'),
+  ('IB3',                  'active',       ARRAY['ibaas'],                'existing'),
+  ('Neela',                'active',       ARRAY['white_label', 'ibaas'], 'existing'),
+  ('Hive Capital',         'contact',      ARRAY['ibaas'],                'inbound'),
+  ('Canal Securitizadora', 'nda',          ARRAY['white_label', 'ibaas'], 'partner'),
+  ('SM Consultoria',       'contact',      ARRAY['ibaas'],                'inbound'),
+  ('V3 Partners',          'homologation', ARRAY['white_label'],          'existing')
+ON CONFLICT DO NOTHING;
