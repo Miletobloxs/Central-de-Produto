@@ -23,6 +23,7 @@ import {
   ShieldAlert,
   Library,
   TrendingUp,
+  FolderOpen,
 } from "lucide-react";
 import { accessService, type Permission, type UserAccessInfo } from "@/lib/services/access.service";
 import { getCurrentUserAction } from "@/lib/actions/auth.actions";
@@ -74,7 +75,8 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/sprint-review", label: "Sprint Review",     icon: FileText  },
       { href: "/decisions",     label: "Mural de Decisões", icon: GitBranch },
-      { href: "/wiki",          label: "Wiki de Produtos",  icon: Library   },
+      { href: "/wiki",          label: "Wiki de Produtos",  icon: Library    },
+      { href: "/documents",     label: "Documentos",        icon: FolderOpen },
     ],
   },
   {
