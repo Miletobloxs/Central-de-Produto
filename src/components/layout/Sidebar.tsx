@@ -22,6 +22,7 @@ import {
   GitBranch,
   ShieldAlert,
   Library,
+  TrendingUp,
 } from "lucide-react";
 import { accessService, type Permission, type UserAccessInfo } from "@/lib/services/access.service";
 import { getCurrentUserAction } from "@/lib/actions/auth.actions";
@@ -88,6 +89,12 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/health",    label: "Health Monitor", icon: Activity     },
       { href: "/incidents", label: "Incidentes",     icon: ShieldAlert  },
+    ],
+  },
+  {
+    label: "Comercial",
+    items: [
+      { href: "/commercial", label: "Gate Comercial", icon: TrendingUp },
     ],
   },
   {
