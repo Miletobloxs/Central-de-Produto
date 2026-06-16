@@ -76,6 +76,14 @@ const IBAS_CLIENTS: IBaaSClient[] = [
       { label: "Backoffice",          url: "https://cad.hmg.bloxs-services.com/backoffice/login", credentials: { login: "admin@bloxs.com", password: "Bl0xs4dminBackoffice" } },
     ],
   },
+  {
+    name: "IBaaS Originação",
+    accent: "bg-indigo-100",
+    textAccent: "text-indigo-700",
+    links: [
+      { label: "Plataforma de Originação", url: "https://ibaas.bloxs-services.com" },
+    ],
+  },
 ];
 
 const WORKSPACE_PRODUCTS: Product[] = [
