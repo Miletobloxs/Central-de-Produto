@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS documents (
 -- Garante colunas mesmo se a tabela já existia sem elas
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS category    TEXT NOT NULL DEFAULT 'outros';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_path   TEXT NOT NULL DEFAULT '';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_name   TEXT NOT NULL DEFAULT '';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_size   BIGINT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS mime_type   TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by TEXT;
