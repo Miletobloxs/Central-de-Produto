@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS documents (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Garante default no id caso a tabela tenha sido criada sem ele
+ALTER TABLE documents ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
 -- Garante colunas mesmo se a tabela já existia sem elas
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS category    TEXT NOT NULL DEFAULT 'outros';
