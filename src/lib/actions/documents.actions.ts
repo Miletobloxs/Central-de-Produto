@@ -38,7 +38,7 @@ export async function getDocumentsAction(): Promise<DocumentRecord[]> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
-      .from("documents")
+      .from("hub_documents")
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -57,7 +57,7 @@ export async function saveDocumentAction(
     const email = await getCurrentUserEmail();
 
     const { data, error } = await supabase
-      .from("documents")
+      .from("hub_documents")
       .insert({
         name: dto.name,
         description: dto.description ?? null,
@@ -88,13 +88,13 @@ export async function deleteDocumentAction(
 
     // Delete from storage
     const { error: storageError } = await supabase.storage
-      .from("documents")
+      .from("hub_documents")
       .remove([filePath]);
     if (storageError) console.warn("[deleteDocumentAction] storage:", storageError.message);
 
     // Delete metadata
     const { error } = await supabase
-      .from("documents")
+      .from("hub_documents")
       .delete()
       .eq("id", id);
     if (error) throw error;
@@ -112,7 +112,7 @@ export async function getSignedUrlAction(
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.storage
-      .from("documents")
+      .from("hub_documents")
       .createSignedUrl(filePath, 3600); // 1h
     if (error) throw error;
     return { success: true, url: data.signedUrl };

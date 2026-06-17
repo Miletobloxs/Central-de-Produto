@@ -1,12 +1,13 @@
 -- Migration 027: Centralizador de Documentos
--- Idempotente: pode ser re-executada sem erros.
+-- Usa tabela "hub_documents" para evitar conflito com a tabela legada "documents" do Prisma.
 
--- ── documents metadata ────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS documents (
+-- ── hub_documents ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS hub_documents (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        TEXT NOT NULL,
   description TEXT,
-  category    TEXT NOT NULL DEFAULT 'outros',
+  category    TEXT NOT NULL DEFAULT 'outros'
+                CHECK (category IN ('touchpoints','templates','comercial','gtm','outros')),
   file_path   TEXT NOT NULL,
   file_name   TEXT NOT NULL,
   file_size   BIGINT,
@@ -16,44 +17,24 @@ CREATE TABLE IF NOT EXISTS documents (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Garante default no id caso a tabela tenha sido criada sem ele
-ALTER TABLE documents ALTER COLUMN id SET DEFAULT gen_random_uuid();
-
--- Remove coluna "type" legada (NOT NULL sem default — não faz parte do schema)
-ALTER TABLE documents DROP COLUMN IF EXISTS "type";
-
--- Garante colunas mesmo se a tabela já existia sem elas
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS description TEXT;
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS category    TEXT NOT NULL DEFAULT 'outros';
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_path   TEXT NOT NULL DEFAULT '';
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_name   TEXT NOT NULL DEFAULT '';
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_size   BIGINT;
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS mime_type   TEXT;
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by TEXT;
-
--- CHECK constraint na categoria (recria se necessário)
-ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_category_check;
-ALTER TABLE documents ADD CONSTRAINT documents_category_check
-  CHECK (category IN ('touchpoints','templates','comercial','gtm','outros'));
-
 -- ── updated_at trigger ────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS documents_updated_at ON documents;
-CREATE TRIGGER documents_updated_at
-  BEFORE UPDATE ON documents
+DROP TRIGGER IF EXISTS hub_documents_updated_at ON hub_documents;
+CREATE TRIGGER hub_documents_updated_at
+  BEFORE UPDATE ON hub_documents
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ── RLS ───────────────────────────────────────────────────────────────────────
-ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hub_documents ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS rls_documents ON documents;
-CREATE POLICY rls_documents ON documents FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS rls_hub_documents ON hub_documents;
+CREATE POLICY rls_hub_documents ON hub_documents FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON documents TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON hub_documents TO authenticated;
 
 -- ── Storage bucket ────────────────────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
