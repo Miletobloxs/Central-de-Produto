@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS documents (
 -- Garante default no id caso a tabela tenha sido criada sem ele
 ALTER TABLE documents ALTER COLUMN id SET DEFAULT gen_random_uuid();
 
+-- Remove coluna "type" legada (NOT NULL sem default — não faz parte do schema)
+ALTER TABLE documents DROP COLUMN IF EXISTS "type";
+
 -- Garante colunas mesmo se a tabela já existia sem elas
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS category    TEXT NOT NULL DEFAULT 'outros';
