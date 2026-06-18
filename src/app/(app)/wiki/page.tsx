@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   ExternalLink, Globe, Layers, Box, ChevronRight, BookOpen,
-  Eye, EyeOff, Copy, Check, Activity, Code2, LayoutGrid,
+  Eye, EyeOff, Copy, Check, Activity, Code2, LayoutGrid, Rocket,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -18,9 +18,10 @@ type ClientLink = {
 
 type IBaaSClient = {
   name: string;
-  accent: string;      // tailwind bg color for avatar
-  textAccent: string;  // tailwind text color
+  accent: string;
+  textAccent: string;
   links: ClientLink[];
+  env?: "HMG" | "PROD";
 };
 
 type Product = {
@@ -82,6 +83,30 @@ const IBAS_CLIENTS: IBaaSClient[] = [
     textAccent: "text-indigo-700",
     links: [
       { label: "Plataforma de Originação", url: "https://ibaas.bloxs-services.com" },
+    ],
+  },
+];
+
+const PROD_CLIENTS: IBaaSClient[] = [
+  {
+    name: "Bloxs",
+    accent: "bg-blue-100",
+    textAccent: "text-blue-700",
+    env: "PROD",
+    links: [
+      { label: "AltXS",             url: "https://altxs.com.br/"             },
+      { label: "Admin",             url: "https://bloxs.com.br/admin"        },
+      { label: "Portal de Parceiros", url: "https://bloxs.partners/"         },
+      { label: "Bloxs Asset",       url: "https://asset.bloxs.com.br/"       },
+    ],
+  },
+  {
+    name: "Vita",
+    accent: "bg-green-100",
+    textAccent: "text-green-700",
+    env: "PROD",
+    links: [
+      { label: "Portal de Parcerias", url: "https://parcerias.sistemavita.com/login" },
     ],
   },
 ];
@@ -174,6 +199,11 @@ function CredentialsToggle({ credentials }: { credentials: Credentials }) {
 // ── IBaaSClientCard ────────────────────────────────────────────────────────────
 
 function IBaaSClientCard({ client }: { client: IBaaSClient }) {
+  const env = client.env ?? "HMG";
+  const envStyle = env === "PROD"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : "bg-amber-50 text-amber-700 border-amber-200";
+
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
       {/* Client header */}
@@ -182,8 +212,8 @@ function IBaaSClientCard({ client }: { client: IBaaSClient }) {
           {client.name.charAt(0)}
         </div>
         <p className="font-bold text-gray-900 text-sm">{client.name}</p>
-        <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-widest bg-amber-50 text-amber-700 border-amber-200">
-          HMG
+        <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-widest ${envStyle}`}>
+          {env}
         </span>
       </div>
 
@@ -327,6 +357,27 @@ export default function WikiPage() {
         </div>
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {IBAS_CLIENTS.map((client) => (
+            <IBaaSClientCard key={client.name} client={client} />
+          ))}
+        </div>
+      </section>
+
+      {/* Produção — Bloxs + clientes */}
+      <section className="bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-50 flex items-center gap-3">
+          <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center">
+            <Rocket size={16} className="text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Produção</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Ambientes de produção — Bloxs e clientes IBaaS/Whitelabel</p>
+          </div>
+          <span className="ml-auto text-xs font-bold text-gray-400 uppercase tracking-widest">
+            {PROD_CLIENTS.length} empresas
+          </span>
+        </div>
+        <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PROD_CLIENTS.map((client) => (
             <IBaaSClientCard key={client.name} client={client} />
           ))}
         </div>
