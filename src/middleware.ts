@@ -3,18 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("PROXY: Missing Supabase environment variables");
-    return response;
-  }
+  if (!supabaseUrl || !supabaseAnonKey) return response;
 
   try {
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -23,14 +18,8 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request: { headers: request.headers } });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -38,39 +27,26 @@ export async function middleware(request: NextRequest) {
       },
     });
 
-    console.log(`DEBUG: [MIDDLEWARE] Checking session for: ${request.nextUrl.pathname}`);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (authError) {
-      console.warn("DEBUG: [MIDDLEWARE] Auth error:", authError.message);
-    }
-
-    const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+    const pathname = request.nextUrl.pathname;
     const publicPaths = ["/login", "/invite", "/api"];
-    const isPublicPath = publicPaths.some((p) => request.nextUrl.pathname.startsWith(p));
-    const isDashboardRoute = !isPublicPath;
+    const isPublicPath = publicPaths.some((p) => pathname.startsWith(p));
 
-    console.log(`DEBUG: [MIDDLEWARE] Path: ${request.nextUrl.pathname} | User: ${user?.email ?? "none"}`);
-
-    if (!user && isDashboardRoute) {
-      console.log("DEBUG: [MIDDLEWARE] Redirecting UNKNOWN user to /login");
+    if (!user && !isPublicPath) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    if (user && isAuthRoute) {
-      console.log("DEBUG: [MIDDLEWARE] Redirecting AUTHED user to /dashboard");
+    if (user && pathname.startsWith("/login")) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
     return response;
-  } catch (err) {
-    console.error("CRITICAL: [MIDDLEWARE] Fatal exception:", err);
+  } catch {
     return response;
   }
-
 }
 
-// Configurado para rodar em quase tudo do app
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
