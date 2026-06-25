@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
 import { TrendingUp, Plus, Lock, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import { getClientsAction, updateStageAction } from "@/lib/actions/commercial.actions";
 import type { CommercialClient, CommercialStage, ClosedReason } from "@/lib/services/commercial.service";
 import CommercialCard from "./CommercialCard";
@@ -238,13 +239,13 @@ export default function CommercialPage() {
   }
 
   async function commitMove(client: CommercialClient, toStage: CommercialStage, closedReason?: ClosedReason) {
-    // Optimistic update
     setClients((prev) => prev.map((c) => c.id === client.id ? { ...c, stage: toStage } : c));
     const res = await updateStageAction(client.id, toStage, closedReason, client.stage);
     if (res.success) {
       setClients((prev) => prev.map((c) => c.id === client.id ? res.data : c));
+      const label: Record<string, string> = { contact: "Contato", nda: "NDA", proposal: "Proposta", homologation: "Homologação", active: "Cliente Ativo", closed: "Encerrado" };
+      toast.success(`${client.company_name} movido para ${label[toStage] ?? toStage}.`);
     } else {
-      // Rollback
       setClients((prev) => prev.map((c) => c.id === client.id ? client : c));
       setGateError(res.error);
     }

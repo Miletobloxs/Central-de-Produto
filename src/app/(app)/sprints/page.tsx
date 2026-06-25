@@ -20,6 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { createClient } from "@/lib/supabase/client";
 import type { Sprint, Task, TaskStatus, TaskPriority, TaskComplexity, SprintStatus } from "@/types/product";
+import PageSkeleton from "@/components/ui/PageSkeleton";
 import {
   Plus,
   Loader2,
@@ -945,13 +946,7 @@ export default function SprintsPage() {
   const totalEstimate  = allTasks.reduce((s: number, t: Task) => s + (t.estimate_hours ?? 0), 0);
   const doneEstimate   = allTasks.filter((t: Task) => t.status === "done").reduce((s: number, t: Task) => s + (t.estimate_hours ?? 0), 0);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-blue-500" size={28} />
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   return (
     <div className="flex flex-col h-full">

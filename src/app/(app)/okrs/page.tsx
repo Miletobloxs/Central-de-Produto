@@ -5,12 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import { okrService } from "@/lib/services/okr.service";
 import { getEpicsListAction } from "@/lib/actions/roadmap.actions";
 import type { Objective, KeyResult, OKRStatus } from "@/types/product";
+import { toast } from "sonner";
+import PageSkeleton from "@/components/ui/PageSkeleton";
 import {
   Target,
   Plus,
   ChevronDown,
   ChevronRight,
-  Loader2,
   X,
   TrendingUp,
   Check,
@@ -253,11 +254,16 @@ export default function OKRsPage() {
   }
 
   async function saveCheckin(kr: KeyResult, value: number, note: string) {
-    await supabase.from("checkins").insert({
+    const { error: insertError } = await supabase.from("checkins").insert({
       key_result_id: kr.id,
       value,
       note: note || null,
     });
+
+    if (insertError) {
+      toast.error("Erro ao salvar check-in: " + insertError.message);
+      return;
+    }
 
     const newStatus: OKRStatus =
       value >= kr.target_value ? "completed"
@@ -279,6 +285,7 @@ export default function OKRsPage() {
       }))
     );
     setCheckingIn(null);
+    toast.success("Check-in registrado!");
   }
 
   function toggleExpand(id: string) {
@@ -293,13 +300,7 @@ export default function OKRsPage() {
     return okrService.calculateObjectiveProgress(obj);
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-blue-500" size={28} />
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   const overallProgress = objectives.length
     ? Math.round(objectives.reduce((s, o) => s + objProgress(o), 0) / objectives.length)

@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Flag, Plus, Users, Clock, AlertTriangle, CheckCircle2, XCircle,
-  Search, X, Loader2,
+  Search, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useDebounce } from "@/hooks/useDebounce";
+import PageSkeleton from "@/components/ui/PageSkeleton";
 
 type FlagType = "release" | "experiment" | "kill-switch";
 type Environment = "production" | "staging" | "dev";
@@ -294,13 +296,15 @@ export default function FeatureFlagsPage() {
     return f.isDev;
   };
 
+  const debouncedSearch = useDebounce(search, 300);
+
   const filtered = useMemo(
     () =>
       flags.filter(
         (f) =>
-          !search ||
-          f.label.toLowerCase().includes(search.toLowerCase()) ||
-          f.key.toLowerCase().includes(search.toLowerCase())
+          !debouncedSearch ||
+          f.label.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          f.key.toLowerCase().includes(debouncedSearch.toLowerCase())
       ),
     [flags, search]
   );
@@ -328,13 +332,7 @@ export default function FeatureFlagsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={24} className="animate-spin text-gray-400" />
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   return (
     <div className="p-6 space-y-5">

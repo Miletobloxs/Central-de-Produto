@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useTransition } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import {
   FolderOpen, Upload, Download, Trash2, FileText, File,
-  FileSpreadsheet, Presentation, Image, Search, AlertCircle,
+  FileSpreadsheet, Presentation, Image, Search,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   getDocumentsAction, deleteDocumentAction,
   type DocumentRecord, type DocumentCategory,
@@ -105,7 +106,7 @@ function DocumentCard({
       a.download = doc.file_name;
       a.click();
     } else {
-      alert(error?.message ?? "Erro ao gerar link de download.");
+      toast.error(error?.message ?? "Erro ao gerar link de download.");
     }
     setDownloading(false);
   }
@@ -200,7 +201,12 @@ export default function DocumentsPage() {
   function handleDelete(id: string, filePath: string) {
     startTransition(async () => {
       const res = await deleteDocumentAction(id, filePath);
-      if (res.success) setDocs((prev) => prev.filter((d) => d.id !== id));
+      if (res.success) {
+        setDocs((prev) => prev.filter((d) => d.id !== id));
+        toast.success("Documento removido.");
+      } else {
+        toast.error(res.error ?? "Erro ao remover documento.");
+      }
     });
   }
 
