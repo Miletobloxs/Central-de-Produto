@@ -412,6 +412,7 @@ export default function DecisionsPage() {
   const [search,          setSearch]          = useState("");
   const [expanded,        setExpanded]        = useState<string | null>(null);
   const [showModal,       setShowModal]       = useState(false);
+  const [visibleCount,    setVisibleCount]    = useState(15);
 
   const fetchDecisions = useCallback(async () => {
     setLoading(true);
@@ -426,6 +427,7 @@ export default function DecisionsPage() {
   }, [supabase]);
 
   useEffect(() => { fetchDecisions(); }, [fetchDecisions]);
+  useEffect(() => { setVisibleCount(15); }, [categoryFilter, search]);
 
   function handleCreated(d: Decision) {
     setDecisions((prev) => [d, ...prev]);
@@ -553,8 +555,9 @@ export default function DecisionsPage() {
             </button>
           </div>
         ) : (
+          <>
           <div className="divide-y divide-gray-50">
-            {filtered.map((d) => {
+            {filtered.slice(0, visibleCount).map((d) => {
               const statusCfg  = statusConfig[d.status];
               const catCfg     = categoryConfig[d.category];
               const StatusIcon = statusCfg.icon;
@@ -679,6 +682,17 @@ export default function DecisionsPage() {
               );
             })}
           </div>
+          {filtered.length > visibleCount && (
+            <div className="flex justify-center px-6 py-4 border-t border-gray-50">
+              <button
+                onClick={() => setVisibleCount((n) => n + 15)}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                Ver mais ({filtered.length - visibleCount} restantes)
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
 

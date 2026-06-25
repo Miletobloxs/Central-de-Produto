@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { X, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import Modal, { ModalHeader } from "@/components/ui/Modal";
 import { createClientAction } from "@/lib/actions/commercial.actions";
 import type { CommercialClient } from "@/lib/services/commercial.service";
 
@@ -66,26 +67,14 @@ export default function NewClientModal({ onClose, onCreated }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-[20px] border border-gray-100 shadow-xl w-full max-w-md mx-4 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Plus size={16} className="text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Novo Prospect</p>
-              <p className="text-[10px] text-gray-400">Entrará no estágio Contato Inicial</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-            <X size={16} className="text-gray-500" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal onClose={onClose} size="md" blocking={isPending}>
+      <ModalHeader
+        icon={<div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center"><Plus size={16} className="text-white" /></div>}
+        title="Novo Prospect"
+        subtitle="Entrará no estágio Contato Inicial"
+        onClose={onClose}
+      />
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Company */}
           <div>
             <label className="text-xs font-bold text-gray-700 uppercase tracking-widest">Empresa *</label>
@@ -192,7 +181,6 @@ export default function NewClientModal({ onClose, onCreated }: Props) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

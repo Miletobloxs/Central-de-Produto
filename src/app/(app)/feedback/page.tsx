@@ -94,8 +94,10 @@ export default function FeedbackPage() {
   const [showAddNPS, setShowNPS]           = useState(false);
   const [filterCategory, setFilterCat]    = useState("all");
   const [filterSentiment, setFilterSent]  = useState("all");
+  const [visibleFeedback, setVisibleFeedback] = useState(20);
 
   useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { setVisibleFeedback(20); }, [filterCategory, filterSentiment]);
 
   async function fetchAll() {
     const supabase = createClient();
@@ -523,8 +525,9 @@ export default function FeedbackPage() {
             }
           />
         ) : (
+          <>
           <div className="divide-y divide-gray-50">
-            {filteredFeedback.slice(0, 12).map((fb) => {
+            {filteredFeedback.slice(0, visibleFeedback).map((fb) => {
               const epicName = epics.find((e) => e.id === fb.epic_id)?.name;
               return (
                 <div
@@ -573,6 +576,17 @@ export default function FeedbackPage() {
               );
             })}
           </div>
+          {filteredFeedback.length > visibleFeedback && (
+            <div className="flex justify-center px-6 py-4 border-t border-gray-50">
+              <button
+                onClick={() => setVisibleFeedback((n) => n + 20)}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                Ver mais ({filteredFeedback.length - visibleFeedback} restantes)
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
 

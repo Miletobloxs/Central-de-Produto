@@ -3,6 +3,7 @@
 import { useState, useRef, useTransition } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { X, Upload, File, AlertCircle, CheckCircle } from "lucide-react";
+import Modal, { ModalHeader } from "@/components/ui/Modal";
 import { saveDocumentAction, type DocumentCategory, type DocumentRecord } from "@/lib/actions/documents.actions";
 
 const CATEGORY_OPTIONS: { value: DocumentCategory; label: string }[] = [
@@ -111,28 +112,14 @@ export default function UploadModal({ onClose, onUploaded }: Props) {
   const uploadingOrDone = uploadState === "uploading" || uploadState === "saving" || uploadState === "done";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={uploadingOrDone ? undefined : onClose} />
-      <div className="relative bg-white rounded-[20px] border border-gray-100 shadow-xl w-full max-w-md mx-4 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Upload size={15} className="text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Novo Documento</p>
-              <p className="text-[10px] text-gray-400">Máx. 50 MB · PDF, DOCX, XLSX, PPT, imagens</p>
-            </div>
-          </div>
-          {!uploadingOrDone && (
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <X size={16} className="text-gray-500" />
-            </button>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <Modal onClose={onClose} size="md" blocking={uploadingOrDone}>
+      <ModalHeader
+        icon={<div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center"><Upload size={15} className="text-white" /></div>}
+        title="Novo Documento"
+        subtitle="Máx. 50 MB · PDF, DOCX, XLSX, PPT, imagens"
+        onClose={!uploadingOrDone ? onClose : undefined}
+      />
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Drop zone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -272,7 +259,6 @@ export default function UploadModal({ onClose, onUploaded }: Props) {
             </div>
           ) : null}
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }
