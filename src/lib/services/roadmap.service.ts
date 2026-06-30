@@ -9,6 +9,15 @@ export interface CreateEpicDTO {
     color?: string;
     startDate?: Date;
     endDate?: Date;
+    // P&L fields (028_pnl_fields.sql)
+    fixedCostEstimado?: number;
+    receitaDesbloqueada?: number;
+    airEstimado?: number;
+    tipoCustoDominante?: string;
+    moatClassificacao?: string;
+    tipoProduto?: string;
+    clientesVinculados?: string[];
+    riceScore?: number;
 }
 
 export interface UpdateEpicDTO extends Partial<CreateEpicDTO> {
@@ -29,6 +38,15 @@ function mapEpicRow(row: any) {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         sprints: row.sprints ?? [],
+        // P&L fields
+        fixedCostEstimado: row.fixed_cost_estimado != null ? Number(row.fixed_cost_estimado) : 0,
+        receitaDesbloqueada: row.receita_desbloqueada != null ? Number(row.receita_desbloqueada) : 0,
+        airEstimado: row.air_estimado != null ? Number(row.air_estimado) : 0,
+        tipoCustoDominante: row.tipo_custo_dominante ?? null,
+        moatClassificacao: row.moat_classificacao ?? null,
+        tipoProduto: row.tipo_produto ?? null,
+        clientesVinculados: row.clientes_vinculados ?? [],
+        riceScore: row.rice_score != null ? Number(row.rice_score) : 0,
     };
 }
 
@@ -77,6 +95,14 @@ export class RoadmapService {
                 end_date: data.endDate
                     ? new Date(data.endDate).toISOString().split("T")[0]
                     : null,
+                ...(data.fixedCostEstimado !== undefined && { fixed_cost_estimado: data.fixedCostEstimado }),
+                ...(data.receitaDesbloqueada !== undefined && { receita_desbloqueada: data.receitaDesbloqueada }),
+                ...(data.airEstimado !== undefined && { air_estimado: data.airEstimado }),
+                ...(data.tipoCustoDominante !== undefined && { tipo_custo_dominante: data.tipoCustoDominante }),
+                ...(data.moatClassificacao !== undefined && { moat_classificacao: data.moatClassificacao }),
+                ...(data.tipoProduto !== undefined && { tipo_produto: data.tipoProduto }),
+                ...(data.clientesVinculados !== undefined && { clientes_vinculados: data.clientesVinculados }),
+                ...(data.riceScore !== undefined && { rice_score: data.riceScore }),
             })
             .select("*, sprints(*)")
             .single();
@@ -98,6 +124,15 @@ export class RoadmapService {
         if (data.color !== undefined) patch.color = data.color;
         if ("startDate" in data) patch.start_date = data.startDate ? new Date(data.startDate).toISOString().split("T")[0] : null;
         if ("endDate" in data) patch.end_date = data.endDate ? new Date(data.endDate).toISOString().split("T")[0] : null;
+        // P&L patch fields
+        if (data.fixedCostEstimado !== undefined) patch.fixed_cost_estimado = data.fixedCostEstimado;
+        if (data.receitaDesbloqueada !== undefined) patch.receita_desbloqueada = data.receitaDesbloqueada;
+        if (data.airEstimado !== undefined) patch.air_estimado = data.airEstimado;
+        if (data.tipoCustoDominante !== undefined) patch.tipo_custo_dominante = data.tipoCustoDominante;
+        if (data.moatClassificacao !== undefined) patch.moat_classificacao = data.moatClassificacao;
+        if (data.tipoProduto !== undefined) patch.tipo_produto = data.tipoProduto;
+        if (data.clientesVinculados !== undefined) patch.clientes_vinculados = data.clientesVinculados;
+        if (data.riceScore !== undefined) patch.rice_score = data.riceScore;
 
         const { data: epic, error } = await supabase
             .from("epics")

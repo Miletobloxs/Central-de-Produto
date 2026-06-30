@@ -24,6 +24,7 @@ import {
   Library,
   TrendingUp,
   FolderOpen,
+  DollarSign,
 } from "lucide-react";
 import { accessService, type Permission, type UserAccessInfo } from "@/lib/services/access.service";
 import { getCurrentUserAction } from "@/lib/actions/auth.actions";
@@ -66,8 +67,9 @@ const navGroups: NavGroup[] = [
   {
     label: "Análise",
     items: [
-      { href: "/analytics", label: "Analytics",     icon: BarChart3     },
+      { href: "/analytics", label: "Analytics",      icon: BarChart3     },
       { href: "/feedback",  label: "Feedback / NPS", icon: MessageSquare },
+      { href: "/pnl",       label: "P&L de Produto", icon: DollarSign    },
     ],
   },
   {

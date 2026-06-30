@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronRight, Star, AlertTriangle, TrendingUp, Plus, X,
-  Loader2, Clock, Edit2, Zap,
+  Loader2, Clock, Edit2, Zap, DollarSign,
 } from "lucide-react";
 import type { Sprint, Task } from "@/types/product";
+import { calcGEM, gateR3 } from "@/lib/services/pnl.service";
 
 // ─── Types ────────────────────────────────────────────────────
 interface ReviewHighlight {
@@ -21,6 +22,10 @@ interface ReviewFormData {
   highlights: ReviewHighlight[];
   next_theme: string;
   next_items: string[];
+  // P&L fields (028_pnl_fields.sql)
+  fixed_cost_realizado: number;
+  receita_realizada: number;
+  ai_cogs_realizado: number;
 }
 
 interface SprintReviewRow extends ReviewFormData {
@@ -35,6 +40,9 @@ const INIT_FORM: ReviewFormData = {
   highlights: [],
   next_theme: "",
   next_items: [],
+  fixed_cost_realizado: 0,
+  receita_realizada: 0,
+  ai_cogs_realizado: 0,
 };
 
 // ─── ArrayInput ───────────────────────────────────────────────
@@ -226,6 +234,59 @@ function ReviewEditor({
             onChange={(v) => set("next_items", v)}
             placeholder="Ex: Feature X (13pts)"
           />
+
+          {/* P&L Realizado */}
+          {(() => {
+            const gem    = calcGEM(form.receita_realizada, form.fixed_cost_realizado, form.ai_cogs_realizado);
+            const gemPct = (gem * 100).toFixed(1);
+            const status = gateR3(gem);
+            const dotColor: Record<string, string> = {
+              pass: "bg-emerald-400", warn: "bg-amber-400", fail: "bg-red-400", pending: "bg-gray-300",
+            };
+            return (
+              <div className="border border-gray-100 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign size={13} className="text-emerald-500" />
+                  <span className="text-xs font-semibold text-gray-700">P&amp;L Realizado da Sprint</span>
+                  {form.receita_realizada > 0 && (
+                    <div className="flex items-center gap-1 ml-auto">
+                      <span className={`w-2 h-2 rounded-full ${dotColor[status]}`} />
+                      <span className="text-xs font-bold text-gray-600">GEM {gemPct}%</span>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1">Custo Fixo (R$)</label>
+                    <input
+                      type="number" min={0} step={100}
+                      value={form.fixed_cost_realizado}
+                      onChange={(e) => set("fixed_cost_realizado", Number(e.target.value))}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1">Receita (R$)</label>
+                    <input
+                      type="number" min={0} step={100}
+                      value={form.receita_realizada}
+                      onChange={(e) => set("receita_realizada", Number(e.target.value))}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1">AI COGS (R$)</label>
+                    <input
+                      type="number" min={0} step={10}
+                      value={form.ai_cogs_realizado}
+                      onChange={(e) => set("ai_cogs_realizado", Number(e.target.value))}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Footer */}
@@ -336,6 +397,9 @@ export default function SprintReviewPage() {
         highlights: form.highlights,
         next_theme: form.next_theme || null,
         next_items: form.next_items,
+        fixed_cost_realizado: form.fixed_cost_realizado,
+        receita_realizada:    form.receita_realizada,
+        ai_cogs_realizado:    form.ai_cogs_realizado,
       })
       .eq("id", selectedReview.id)
       .select()
@@ -680,6 +744,9 @@ export default function SprintReviewPage() {
             highlights: selectedReview.highlights ?? [],
             next_theme: selectedReview.next_theme ?? "",
             next_items: selectedReview.next_items ?? [],
+            fixed_cost_realizado: (selectedReview as any).fixed_cost_realizado ?? 0,
+            receita_realizada:    (selectedReview as any).receita_realizada    ?? 0,
+            ai_cogs_realizado:    (selectedReview as any).ai_cogs_realizado    ?? 0,
           }}
           onSave={handleSaveReview}
           onClose={() => setShowEditor(false)}

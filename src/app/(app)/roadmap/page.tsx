@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, X, Loader2, Layers, Calendar, Target, Zap, ChevronDown, ChevronRight, AlertCircle, Pencil, Check } from "lucide-react";
+import { Plus, X, Loader2, Layers, Calendar, Target, Zap, ChevronDown, ChevronRight, AlertCircle, Pencil, Check, DollarSign } from "lucide-react";
+import { calcGEM, gateR1, gateR2, gateR3 } from "@/lib/services/pnl.service";
 import type { Sprint, Task } from "@/types/product";
 import { getCurrentUserAction } from "@/lib/actions/auth.actions";
 import { accessService, UserAccessInfo } from "@/lib/services/access.service";
@@ -24,6 +25,15 @@ interface Epic {
   endDate?: string | Date | null;
   sprints?: Sprint[];
   objectiveIds?: string[];
+  // P&L fields (028_pnl_fields.sql)
+  fixedCostEstimado?: number;
+  receitaDesbloqueada?: number;
+  airEstimado?: number;
+  tipoCustoDominante?: string | null;
+  moatClassificacao?: string | null;
+  tipoProduto?: string | null;
+  clientesVinculados?: string[];
+  riceScore?: number;
 }
 
 interface Objective {
@@ -195,6 +205,7 @@ function EpicDetailPanel({
   const [error, setError] = useState("");
   const [sprintsOpen, setSprintsOpen] = useState(true);
   const [objsOpen, setObjsOpen] = useState(true);
+  const [pnlOpen, setPnlOpen] = useState(false);
 
   // Edit form state — initialised from epic
   const [form, setForm] = useState({
@@ -210,6 +221,17 @@ function EpicDetailPanel({
   const [selSprintIds, setSelSprintIds] = useState<string[]>((epic.sprints ?? []).map((s) => s.id));
   const [selObjIds, setSelObjIds] = useState<string[]>(epic.objectiveIds ?? []);
 
+  // P&L form state
+  const [pnlForm, setPnlForm] = useState({
+    fixedCostEstimado: epic.fixedCostEstimado ?? 0,
+    receitaDesbloqueada: epic.receitaDesbloqueada ?? 0,
+    airEstimado: epic.airEstimado ?? 0,
+    tipoCustoDominante: epic.tipoCustoDominante ?? "",
+    moatClassificacao: epic.moatClassificacao ?? "",
+    tipoProduto: epic.tipoProduto ?? "",
+    riceScore: epic.riceScore ?? 0,
+  });
+
   function startEditing() {
     setForm({
       title: epic.name,
@@ -220,6 +242,15 @@ function EpicDetailPanel({
       color: epic.color,
       start_date: toInputDate(epic.startDate),
       end_date: toInputDate(epic.endDate),
+    });
+    setPnlForm({
+      fixedCostEstimado: epic.fixedCostEstimado ?? 0,
+      receitaDesbloqueada: epic.receitaDesbloqueada ?? 0,
+      airEstimado: epic.airEstimado ?? 0,
+      tipoCustoDominante: epic.tipoCustoDominante ?? "",
+      moatClassificacao: epic.moatClassificacao ?? "",
+      tipoProduto: epic.tipoProduto ?? "",
+      riceScore: epic.riceScore ?? 0,
     });
     setSelSprintIds((epic.sprints ?? []).map((s) => s.id));
     setSelObjIds(epic.objectiveIds ?? []);
@@ -242,6 +273,13 @@ function EpicDetailPanel({
         color: form.color,
         startDate: form.start_date ? new Date(form.start_date) : undefined,
         endDate: form.end_date ? new Date(form.end_date) : undefined,
+        fixedCostEstimado: pnlForm.fixedCostEstimado,
+        receitaDesbloqueada: pnlForm.receitaDesbloqueada,
+        airEstimado: pnlForm.airEstimado,
+        tipoCustoDominante: pnlForm.tipoCustoDominante || undefined,
+        moatClassificacao: pnlForm.moatClassificacao || undefined,
+        tipoProduto: pnlForm.tipoProduto || undefined,
+        riceScore: pnlForm.riceScore,
       });
       if (!result.success) { setError(result.error); return; }
 
@@ -498,6 +536,111 @@ function EpicDetailPanel({
                 )}
               </div>
 
+              {/* P&L */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <button
+                  type="button" onClick={() => setPnlOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <DollarSign size={13} className="text-emerald-500" />
+                    <span className="text-xs font-semibold text-gray-700">P&amp;L do Épico</span>
+                  </div>
+                  {pnlOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                </button>
+                {pnlOpen && (
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-1">Custo Fixo Estimado (R$)</label>
+                        <input
+                          type="number" min={0} step={100}
+                          value={pnlForm.fixedCostEstimado}
+                          onChange={(e) => setPnlForm((f) => ({ ...f, fixedCostEstimado: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-1">Receita Desbloqueada (R$)</label>
+                        <input
+                          type="number" min={0} step={100}
+                          value={pnlForm.receitaDesbloqueada}
+                          onChange={(e) => setPnlForm((f) => ({ ...f, receitaDesbloqueada: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-1">AIR Estimado (%)</label>
+                        <input
+                          type="number" min={0} max={100} step={0.1}
+                          value={pnlForm.airEstimado}
+                          onChange={(e) => setPnlForm((f) => ({ ...f, airEstimado: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-1">RICE Score</label>
+                        <input
+                          type="number" min={0} step={10}
+                          value={pnlForm.riceScore}
+                          onChange={(e) => setPnlForm((f) => ({ ...f, riceScore: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-1">Tipo de Produto</label>
+                        <select
+                          value={pnlForm.tipoProduto}
+                          onChange={(e) => setPnlForm((f) => ({ ...f, tipoProduto: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+                        >
+                          <option value="">— selecionar —</option>
+                          <option value="plataforma">Plataforma</option>
+                          <option value="saas">SaaS</option>
+                          <option value="marketplace">Marketplace</option>
+                          <option value="servico">Serviço</option>
+                          <option value="infraestrutura">Infraestrutura</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500 mb-1">Custo Dominante</label>
+                        <select
+                          value={pnlForm.tipoCustoDominante}
+                          onChange={(e) => setPnlForm((f) => ({ ...f, tipoCustoDominante: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+                        >
+                          <option value="">— selecionar —</option>
+                          <option value="ai_cogs">AI / COGS</option>
+                          <option value="infra">Infraestrutura</option>
+                          <option value="people">Pessoas</option>
+                          <option value="integracoes">Integrações</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500 mb-1">Classificação de Moat</label>
+                      <select
+                        value={pnlForm.moatClassificacao}
+                        onChange={(e) => setPnlForm((f) => ({ ...f, moatClassificacao: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 bg-white"
+                      >
+                        <option value="">— selecionar —</option>
+                        <option value="none">Nenhum</option>
+                        <option value="switching_costs">Custo de Troca</option>
+                        <option value="network_effects">Efeito de Rede</option>
+                        <option value="data_moat">Dados Proprietários</option>
+                        <option value="regulatory">Regulatório</option>
+                        <option value="brand">Marca</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {error && (
                 <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {error}</p>
               )}
@@ -615,6 +758,105 @@ function EpicDetailPanel({
                 </div>
               )}
             </div>
+
+            {/* P&L */}
+            {(() => {
+              const receita = epic.receitaDesbloqueada ?? 0;
+              const fixed   = epic.fixedCostEstimado ?? 0;
+              const airPct  = (epic.airEstimado ?? 0) / 100;
+              const aiCogs  = receita * airPct;
+              const gem     = calcGEM(receita, fixed, aiCogs);
+              const gemPct  = (gem * 100).toFixed(1);
+              const airDisp = (airPct * 100).toFixed(1);
+              const hasPnl  = receita > 0 || fixed > 0 || (epic.riceScore ?? 0) > 0;
+              const gemStatus = gateR3(gem);
+              const airStatus = gateR2(airPct);
+              const riceStatus = gateR1(epic.riceScore ?? 0);
+              const statusDot: Record<string, string> = {
+                pass: "bg-emerald-400", warn: "bg-amber-400", fail: "bg-red-400", pending: "bg-gray-300",
+              };
+              return (
+                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    type="button" onClick={() => setPnlOpen((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={13} className="text-emerald-500" />
+                      <span className="text-xs font-semibold text-gray-700">P&amp;L do Épico</span>
+                      {hasPnl && (
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot[gemStatus]}`} title={`GEM ${gemPct}%`} />
+                      )}
+                    </div>
+                    {pnlOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                  </button>
+                  {pnlOpen && (
+                    <div className="p-4 space-y-3">
+                      {!hasPnl ? (
+                        <p className="text-xs text-gray-400">
+                          Nenhum dado financeiro cadastrado.
+                          {canManage && (
+                            <button type="button" onClick={startEditing} className="underline ml-1 font-semibold text-blue-500">Preencher P&amp;L</button>
+                          )}
+                        </p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="rounded-xl px-3 py-2.5 text-center bg-emerald-50">
+                              <div className="flex items-center justify-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full ${statusDot[gemStatus]}`} />
+                                <p className="text-sm font-bold text-emerald-700">{gemPct}%</p>
+                              </div>
+                              <p className="text-[10px] text-emerald-500 mt-0.5">GEM</p>
+                            </div>
+                            <div className="rounded-xl px-3 py-2.5 text-center bg-blue-50">
+                              <div className="flex items-center justify-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full ${statusDot[airStatus]}`} />
+                                <p className="text-sm font-bold text-blue-700">{airDisp}%</p>
+                              </div>
+                              <p className="text-[10px] text-blue-500 mt-0.5">AIR%</p>
+                            </div>
+                            <div className="rounded-xl px-3 py-2.5 text-center bg-purple-50">
+                              <div className="flex items-center justify-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full ${statusDot[riceStatus]}`} />
+                                <p className="text-sm font-bold text-purple-700">{epic.riceScore ?? 0}</p>
+                              </div>
+                              <p className="text-[10px] text-purple-500 mt-0.5">RICE</p>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5 text-xs text-gray-600">
+                            {receita > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Receita desbloqueada</span>
+                                <span className="font-semibold">R$ {receita.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {fixed > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Custo fixo estimado</span>
+                                <span className="font-semibold">R$ {fixed.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {epic.moatClassificacao && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Moat</span>
+                                <span className="font-semibold capitalize">{epic.moatClassificacao.replace(/_/g, " ")}</span>
+                              </div>
+                            )}
+                            {epic.tipoProduto && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Tipo</span>
+                                <span className="font-semibold capitalize">{epic.tipoProduto}</span>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

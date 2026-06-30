@@ -53,6 +53,18 @@ export async function updateEpicAction(data: UpdateEpicDTO): Promise<{ success: 
     }
 }
 
+export async function getEpicPnlAction(epicId: string): Promise<{ success: true; data: any } | { success: false; error: string }> {
+    try {
+        const epics = await roadmapService.getEpics();
+        const epic = epics.find((e: any) => e.id === epicId);
+        if (!epic) return { success: false, error: "Épico não encontrado." };
+        return { success: true, data: epic };
+    } catch (err: any) {
+        console.error("[getEpicPnlAction]", err);
+        return { success: false, error: err.message || "Erro ao buscar P&L do épico." };
+    }
+}
+
 export async function linkSprintsToEpicAction(sprintIds: string[], epicId: string): Promise<{ success: true; data: any } | { success: false; error: string }> {
     try {
         const user = await getRequiredSession();
