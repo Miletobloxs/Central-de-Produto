@@ -96,7 +96,18 @@ model Epic {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  // P&L fields (028_pnl_fields.sql)
+  fixedCostEstimado   Decimal?  @default(0) @map("fixed_cost_estimado")  @db.Decimal(14, 2)
+  receitaDesbloqueada Decimal?  @default(0) @map("receita_desbloqueada") @db.Decimal(14, 2)
+  airEstimado         Decimal?  @default(0) @map("air_estimado")         @db.Decimal(5, 2)
+  tipoCustoDominante  String?   @map("tipo_custo_dominante")
+  moatClassificacao   String?   @map("moat_classificacao")
+  tipoProduto         String?   @map("tipo_produto")
+  clientesVinculados  String[]  @default([]) @map("clientes_vinculados")
+  riceScore           Decimal?  @default(0) @map("rice_score")           @db.Decimal(8, 2)
+
   sprints     Sprint[]
+  gateChecks  EpicGateCheck[]
 
   @@map("epics")
 }
@@ -113,6 +124,10 @@ model Sprint {
   epic       Epic?     @relation(fields: [epicId], references: [id], onDelete: SetNull)
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // P&L fields (028_pnl_fields.sql)
+  kpiNegocioAlvo String?  @map("kpi_negocio_alvo")
+  temAiCogs      Boolean  @default(false) @map("tem_ai_cogs")
 
   tasks         Task[]
   sprint_reviews SprintReview?
@@ -138,6 +153,9 @@ model Task {
   createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  // P&L fields (028_pnl_fields.sql)
+  aiCogsEstimado Decimal? @default(0) @map("ai_cogs_estimado") @db.Decimal(12, 2)
+
   @@index([sprintId])
   @@map("tasks")
 }
@@ -153,6 +171,11 @@ model SprintReview {
   nextItems String[]  @default([]) @map("next_items")
   createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // P&L fields (028_pnl_fields.sql)
+  fixedCostRealizado Decimal? @default(0) @map("fixed_cost_realizado") @db.Decimal(14, 2)
+  receitaRealizada   Decimal? @default(0) @map("receita_realizada")    @db.Decimal(14, 2)
+  aiCogsRealizado    Decimal? @default(0) @map("ai_cogs_realizado")    @db.Decimal(14, 2)
 
   sprint    Sprint    @relation(fields: [sprintId], references: [id], onDelete: Cascade)
 
@@ -301,6 +324,25 @@ model FlagAudit {
 
   @@index([flagId])
   @@map("flag_audit_logs")
+}
+
+// ============================================
+// PRODUTO — P&L / GATE CHECKS (029_pnl_gate_checks.sql)
+// ============================================
+
+model EpicGateCheck {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  epicId        String    @map("epic_id") @db.Uuid
+  gateCode      String    @map("gate_code")
+  status        String    @default("pending")
+  computedValue Decimal?  @map("computed_value")
+  note          String?
+  checkedAt     DateTime  @default(now()) @map("checked_at") @db.Timestamptz(6)
+
+  epic          Epic      @relation(fields: [epicId], references: [id], onDelete: Cascade)
+
+  @@index([epicId], name: "idx_gate_checks_epic")
+  @@map("epic_gate_checks")
 }
 
 // ============================================
