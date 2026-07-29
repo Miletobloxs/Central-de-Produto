@@ -61,6 +61,22 @@ const IBAS_CLIENTS: IBaaSClient[] = [
     ],
   },
   {
+    name: "Wellote",
+    accent: "bg-rose-100",
+    textAccent: "text-rose-700",
+    links: [
+      { label: "App de Investimento", url: "https://wellote.hmg.bloxs-services.com" },
+    ],
+  },
+  {
+    name: "V3 Partners",
+    accent: "bg-purple-100",
+    textAccent: "text-purple-700",
+    links: [
+      { label: "App de Investimento", url: "https://v3partners.hmg.bloxs-services.com" },
+    ],
+  },
+  {
     name: "Fictor Asset",
     accent: "bg-orange-100",
     textAccent: "text-orange-700",
@@ -98,6 +114,24 @@ const PROD_CLIENTS: IBaaSClient[] = [
       { label: "Admin",             url: "https://bloxs.com.br/admin"        },
       { label: "Portal de Parceiros", url: "https://bloxs.partners/"         },
       { label: "Bloxs Asset",       url: "https://asset.bloxs.com.br/"       },
+    ],
+  },
+  {
+    name: "IB3",
+    accent: "bg-sky-100",
+    textAccent: "text-sky-700",
+    env: "PROD",
+    links: [
+      { label: "App de Investimento", url: "https://ib3.bloxs.com.br" },
+    ],
+  },
+  {
+    name: "Neela",
+    accent: "bg-teal-100",
+    textAccent: "text-teal-700",
+    env: "PROD",
+    links: [
+      { label: "App de Investimento", url: "https://neela.bloxs.com.br" },
     ],
   },
   {
