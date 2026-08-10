@@ -30,6 +30,7 @@ export type SaveDocumentDTO = {
 
 async function getCurrentUserEmail(): Promise<string | undefined> {
   const supabase = await createClient();
+  if (!supabase) return undefined;
   const { data: { user } } = await supabase.auth.getUser();
   return user?.email ?? undefined;
 }
@@ -37,6 +38,7 @@ async function getCurrentUserEmail(): Promise<string | undefined> {
 export async function getDocumentsAction(): Promise<DocumentRecord[]> {
   try {
     const supabase = await createClient();
+    if (!supabase) return [];
     const { data, error } = await supabase
       .from("hub_documents")
       .select("*")
@@ -54,6 +56,7 @@ export async function saveDocumentAction(
 ): Promise<{ success: true; data: DocumentRecord } | { success: false; error: string }> {
   try {
     const supabase = await createClient();
+    if (!supabase) return { success: false, error: "Supabase client indisponível" };
     const email = await getCurrentUserEmail();
 
     const { data, error } = await supabase
@@ -85,6 +88,7 @@ export async function deleteDocumentAction(
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     const supabase = await createClient();
+    if (!supabase) return { success: false, error: "Supabase client indisponível" };
 
     // Delete from storage
     const { error: storageError } = await supabase.storage
@@ -111,6 +115,7 @@ export async function getSignedUrlAction(
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
   try {
     const supabase = await createClient();
+    if (!supabase) return { success: false, error: "Supabase client indisponível" };
     const { data, error } = await supabase.storage
       .from("hub_documents")
       .createSignedUrl(filePath, 3600); // 1h
