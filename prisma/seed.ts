@@ -28,23 +28,31 @@ async function main() {
 
   console.log(`✅ Group created: ${adminGroup.name}`);
 
-  // 2. Criar Usuário Super Admin (ID deve bater com o Supabase Auth se possível)
-  // Nota: O e-mail é o campo de vínculo principal no middleware e auth logic atual.
-  const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@bloxs.com.br' },
-    update: {
-      role: UserRole.SUPER_ADMIN,
-      groupId: adminGroup.id,
-    },
-    create: {
-      email: 'admin@bloxs.com.br',
-      name: 'Central Admin',
-      role: UserRole.SUPER_ADMIN,
-      groupId: adminGroup.id,
-    },
-  });
+  // 2. Criar Usuários Super Admin oficiais
+  const superAdmins = [
+    { email: 'carlos.carneiro@bloxs.com.br', name: 'Carlos Carneiro' },
+    { email: 'raphael.franco@bloxs.com.br', name: 'Raphael Franco' },
+    { email: 'diego.sorrilha@bloxs.com.br', name: 'Diego Sorrilha' },
+    { email: 'admin@bloxs.com.br', name: 'Central Admin' },
+  ];
 
-  console.log(`✅ Admin user created/updated: ${adminUser.email}`);
+  for (const adminDef of superAdmins) {
+    const adminUser = await prisma.user.upsert({
+      where: { email: adminDef.email },
+      update: {
+        role: UserRole.SUPER_ADMIN,
+        groupId: adminGroup.id,
+        name: adminDef.name,
+      },
+      create: {
+        email: adminDef.email,
+        name: adminDef.name,
+        role: UserRole.SUPER_ADMIN,
+        groupId: adminGroup.id,
+      },
+    });
+    console.log(`✅ Super Admin created/updated: ${adminUser.email}`);
+  }
   console.log('✨ Seed finished successfully!');
 }
 
