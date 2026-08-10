@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Flag, Plus, Users, Clock, AlertTriangle, CheckCircle2, XCircle,
-  Search, X,
+  Search, X, Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useDebounce } from "@/hooks/useDebounce";
